@@ -92,10 +92,26 @@ final class ExternalBrightnessController: ObservableObject {
         let generation = token
         ddc.enumerate(token: generation) { [weak self] found in
             guard let self, self.token == generation, !self.sleeping else { return }
-            self.monitors = found.map(Monitor.init)
+            self.monitors = Self.named(found).map(Monitor.init)
             self.logger.notice("Discovered \(found.count) external monitor services")
             self.publish()
             self.tick()
+        }
+    }
+
+    /// DDC 서비스 노드에는 제품명이 없는 경우가 많다. 외부 화면이 한 대면 macOS 화면 이름을 쓰고,
+    /// 여러 대면 어느 서비스가 어느 화면인지 확실하지 않으므로 번호로 구분한다.
+    private static func named(_ found: [ExternalDisplays.Display]) -> [ExternalDisplays.Display] {
+        let externalScreens = NSScreen.screens.filter {
+            guard let id = $0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID else { return false }
+            return CGDisplayIsBuiltin(id) == 0
+        }
+        return found.enumerated().map { index, display in
+            guard display.name == "외부 모니터" else { return display }
+            if found.count == 1, externalScreens.count == 1 {
+                return ExternalDisplays.Display(id: display.id, name: externalScreens[0].localizedName)
+            }
+            return ExternalDisplays.Display(id: display.id, name: found.count > 1 ? "외부 모니터 \(index + 1)" : display.name)
         }
     }
 
