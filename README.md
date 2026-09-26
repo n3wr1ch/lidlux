@@ -32,6 +32,14 @@ When macOS automatic brightness stops working after you connect an external moni
 
 ## Install
 
+### Homebrew
+
+```sh
+brew install --cask n3wr1ch/tap/lidlux
+```
+
+Upgrade with `brew upgrade --cask lidlux`. The first-launch and Accessibility notes below still apply.
+
 ### Download a release
 
 1. Download the LidLux ZIP from [GitHub Releases](https://github.com/n3wr1ch/lidlux/releases) and unzip it.

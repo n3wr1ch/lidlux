@@ -32,6 +32,14 @@
 
 ## 설치
 
+### Homebrew
+
+```sh
+brew install --cask n3wr1ch/tap/lidlux
+```
+
+업데이트는 `brew upgrade --cask lidlux`. 아래의 첫 실행·손쉬운 사용 권한 안내는 Homebrew로 설치해도 동일하게 적용됩니다.
+
 ### 릴리스 다운로드
 
 1. [GitHub Releases](https://github.com/n3wr1ch/lidlux/releases)에서 LidLux ZIP을 내려받아 압축을 풉니다.

@@ -7,6 +7,10 @@
 
 ## Install
 
+With Homebrew: `brew install --cask n3wr1ch/tap/lidlux` (or `brew upgrade --cask lidlux`).
+
+Manually:
+
 1. Download `LidLux-{{VERSION}}.zip` below and unzip it.
 2. Move `LidLux.app` to `/Applications`.
 3. Open LidLux. It uses ad-hoc signing and is **not Developer ID signed or notarized**. If macOS blocks the first launch, open **System Settings → Privacy & Security → Open Anyway** and confirm.
