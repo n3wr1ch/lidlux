@@ -63,7 +63,7 @@ private struct SettingsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 HStack {
-                    Text(L10n.brightnessBias).frame(width: 72, alignment: .leading)
+                    Text(L10n.brightnessBias).frame(width: 150, alignment: .leading)
                     Text(L10n.darker)
                     Slider(value: $settings.brightnessBias, in: -0.3...0.3).accessibilityLabel(L10n.brightnessBias)
                     Text(L10n.brighter)
@@ -71,7 +71,7 @@ private struct SettingsView: View {
                         .monospacedDigit().frame(width: 44, alignment: .trailing)
                 }
                 HStack {
-                    Text(L10n.minimumBrightness).frame(width: 72, alignment: .leading)
+                    Text(L10n.minimumBrightness).frame(width: 150, alignment: .leading)
                     Slider(value: $settings.minimumBrightness, in: 0...0.3).accessibilityLabel(L10n.minimumBrightness)
                     Text(L10n.percent(settings.minimumBrightness * 100))
                         .monospacedDigit().frame(width: 44, alignment: .trailing)
