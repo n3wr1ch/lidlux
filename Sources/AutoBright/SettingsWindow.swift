@@ -60,17 +60,18 @@ private struct SettingsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             HStack {
-                Text("밝기 성향")
-                Spacer()
-                Text(String(format: "%+.0f%%", settings.brightnessBias * 100)).monospacedDigit()
+                Text("밝기 성향").frame(width: 72, alignment: .leading)
+                Text("어둡게")
+                Slider(value: $settings.brightnessBias, in: -0.3...0.3).accessibilityLabel("밝기 성향")
+                Text("밝게")
+                Text(String(format: "%+.0f%%", settings.brightnessBias * 100))
+                    .monospacedDigit().frame(width: 44, alignment: .trailing)
             }
-            Slider(value: $settings.brightnessBias, in: -0.3...0.3) {
-                Text("밝기 성향")
-            } minimumValueLabel: { Text("어둡게") } maximumValueLabel: { Text("밝게") }
             HStack {
-                Text("최소 밝기")
+                Text("최소 밝기").frame(width: 72, alignment: .leading)
                 Slider(value: $settings.minimumBrightness, in: 0...0.3).accessibilityLabel("최소 밝기")
-                Text(String(format: "%.0f%%", settings.minimumBrightness * 100)).monospacedDigit().frame(width: 44)
+                Text(String(format: "%.0f%%", settings.minimumBrightness * 100))
+                    .monospacedDigit().frame(width: 44, alignment: .trailing)
             }
             Picker("반응 속도", selection: $settings.responseSpeed) {
                 ForEach(Settings.ResponseSpeed.allCases) { speed in Text(speed.title).tag(speed) }
@@ -88,8 +89,9 @@ private struct SettingsView: View {
                     CurvePreview(settings: settings, lux: controller.lastLux)
                 }
             }
-            Text("실선: 적용 곡선 · 점선: 기본 곡선 · 점: 현재 조도의 목표 밝기\n실제 화면 밝기는 반응 속도에 따라 부드럽게 이동합니다.")
+            Text("실선: 적용 곡선 · 회색 점선: 기본 곡선 (같으면 겹침)\n점: 현재 조도의 목표 밝기\n실제 화면 밝기는 반응 속도에 따라 부드럽게 이동합니다.")
                 .font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
             HStack {
                 Button("보정값 초기화") { controller.resetOffset() }
                 Spacer()
@@ -136,7 +138,7 @@ private struct CurvePreview: View {
                         .position(x: 40 + log10(Double(value) + 1) / maxLog * width, y: height + 12)
                 }
                 curve(width: width, height: height, applied: false)
-                    .stroke(Color.secondary, style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
+                    .stroke(Color.gray, style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
                 curve(width: width, height: height, applied: true)
                     .stroke(Color.accentColor, lineWidth: 2.5)
                 if let lux {
