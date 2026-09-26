@@ -76,3 +76,7 @@ build/LidLux.app                  빌드 결과 (Git 제외)
 ./scripts/make-icon.sh
 ./build.sh
 ```
+
+## 라이선스
+
+MIT License. [LICENSE](LICENSE)를 참고하세요.
