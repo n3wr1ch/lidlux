@@ -39,7 +39,7 @@ final class SettingsWindow: NSWindowController {
     init(controller: BrightnessController) {
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 560, height: 700),
                               styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
-        window.title = "AutoBright 설정"
+        window.title = "LidLux 설정"
         window.isReleasedWhenClosed = false
         window.contentViewController = NSHostingController(rootView: SettingsView(settings: controller.settings, controller: controller))
         super.init(window: window)

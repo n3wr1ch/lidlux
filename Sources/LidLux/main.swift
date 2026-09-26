@@ -3,7 +3,7 @@ import ServiceManagement
 import os
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
-    private let logger = Logger(subsystem: "com.ntoktok.autobright", category: "app")
+    private let logger = Logger(subsystem: "com.ntoktok.lidlux", category: "app")
     private var statusItem: NSStatusItem?
     private var controller: BrightnessController?
     private var settingsWindow: SettingsWindow?
@@ -15,7 +15,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let loginItem = NSMenuItem(title: "로그인 시 실행", action: #selector(toggleLogin), keyEquivalent: "")
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        logger.notice("AutoBright launching")
+        logger.notice("LidLux launching")
         guard let sensor = AmbientLightSensor(), let display = BuiltinDisplay() else {
             logger.error("Unable to initialize ambient light sensor or display API")
             let alert = NSAlert()
@@ -80,7 +80,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let on = controller.isEnabled
         statusItem.button?.image = NSImage(
             systemSymbolName: on ? "sun.max.fill" : "sun.max",
-            accessibilityDescription: "AutoBright")
+            accessibilityDescription: "LidLux")
         statusItem.button?.appearsDisabled = !on
 
         let lux = controller.lastLux.map { String(format: "%.0f lux", $0) } ?? "– lux"

@@ -21,7 +21,7 @@ final class Settings: ObservableObject {
     }
 
     private let defaults: UserDefaults
-    private let logger = Logger(subsystem: "com.ntoktok.autobright", category: "settings")
+    private let logger = Logger(subsystem: "com.ntoktok.lidlux", category: "settings")
     /// UI and controller run on the main thread. The controller reads changes on its next sample.
     var onChange: ((String) -> Void)?
     @Published private var enabledValue: Bool
@@ -32,11 +32,24 @@ final class Settings: ObservableObject {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        Self.migrateLegacySettings(into: defaults)
         enabledValue = defaults.object(forKey: "enabled") as? Bool ?? true
         offsetValue = Float(Self.read(defaults, "offset", fallback: 0, range: -1...1))
         biasValue = Self.read(defaults, "brightnessBias", fallback: 0, range: -0.3...0.3)
         minimumValue = Self.read(defaults, "minimumBrightness", fallback: 0.03, range: 0...0.3)
         speedValue = ResponseSpeed(rawValue: defaults.string(forKey: "responseSpeed") ?? "") ?? .normal
+    }
+
+    /// 이전 이름(AutoBright, com.ntoktok.autobright) 시절의 설정을 한 번만 옮겨온다.
+    private static func migrateLegacySettings(into defaults: UserDefaults) {
+        let marker = "migratedLegacySettings"
+        guard !defaults.bool(forKey: marker) else { return }
+        defaults.set(true, forKey: marker)
+        guard let legacy = UserDefaults(suiteName: "com.ntoktok.autobright")?.persistentDomain(forName: "com.ntoktok.autobright") else { return }
+        for key in ["enabled", "offset", "brightnessBias", "minimumBrightness", "responseSpeed"]
+        where defaults.object(forKey: key) == nil {
+            if let value = legacy[key] { defaults.set(value, forKey: key) }
+        }
     }
 
     private static func read(_ defaults: UserDefaults, _ key: String, fallback: Double, range: ClosedRange<Double>) -> Double {

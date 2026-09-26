@@ -1,4 +1,4 @@
-# AutoBright
+# LidLux
 
 외부 모니터 연결 후 MacBook 내장 디스플레이의 자동 밝기가 멈추는 문제를 해결하기 위한 macOS 메뉴바 앱입니다. 내장 조도 센서를 직접 읽어 주변 밝기에 맞춰 **내장 디스플레이** 밝기를 조절합니다. 외부 모니터 연결 여부와 관계없이 사용할 수 있으며, 외부 모니터 밝기는 조절하지 않습니다.
 
@@ -12,9 +12,9 @@ Apple Silicon MacBook과 Command Line Tools가 필요합니다. macOS 27 사용 
 ./build.sh install
 ```
 
-릴리스 빌드와 앱 번들 생성, 로컬 임시 서명(ad-hoc)을 수행한 뒤 `/Applications/AutoBright.app`에 설치하고 실행합니다. 기존 AutoBright가 실행 중이면 종료하고 설치본을 교체합니다.
+릴리스 빌드와 앱 번들 생성, 로컬 임시 서명(ad-hoc)을 수행한 뒤 `/Applications/LidLux.app`에 설치하고 실행합니다. 기존 LidLux가 실행 중이면 종료하고 설치본을 교체합니다.
 
-빌드만 하려면 `./build.sh`를 실행합니다. 결과는 `build/AutoBright.app`입니다.
+빌드만 하려면 `./build.sh`를 실행합니다. 결과는 `build/LidLux.app`입니다.
 
 ## 사용법
 
@@ -35,7 +35,7 @@ Dock 창 대신 메뉴바에 태양 아이콘이 표시됩니다. 아이콘을 �
 
 설정 창에서 **밝기 성향**(기본 0), **최소 밝기**(0~30%, 기본 3%), **반응 속도**(느림/보통/빠름, 기본 보통)를 바꿀 수 있습니다. 변경 내용은 저장되고 다음 조도 샘플부터 부드럽게 반영됩니다. 수동 조절 대기·유휴 디밍·복귀 유예는 유지됩니다. 그래프는 기본 곡선과 성향·학습 보정·최소 밝기를 반영한 적용 곡선을 보여 줍니다. **기본값으로 되돌리기**는 밝기 설정과 학습 보정을 초기화하고 자동 조절을 켭니다(로그인 실행 설정은 유지).
 
-**권장:** 시스템 설정 → 디스플레이에서 내장 디스플레이의 **“자동으로 밝기 조절”을 끄세요.** 시스템과 AutoBright가 동시에 밝기를 바꾸면 서로 간섭하거나 시스템의 변경을 사용자 선호로 인식할 수 있습니다.
+**권장:** 시스템 설정 → 디스플레이에서 내장 디스플레이의 **“자동으로 밝기 조절”을 끄세요.** 시스템과 LidLux가 동시에 밝기를 바꾸면 서로 간섭하거나 시스템의 변경을 사용자 선호로 인식할 수 있습니다.
 
 ## 동작 원리
 
@@ -57,7 +57,7 @@ Dock 창 대신 메뉴바에 태양 아이콘이 표시됩니다. 아이콘을 �
 
 ```text
 Package.swift                         Swift Package 설정
-Sources/AutoBright/
+Sources/LidLux/
   main.swift                          메뉴바 UI, 로그인 실행, 시스템 이벤트
   BrightnessController.swift          조도 곡선, 보정 학습, 밝기 전환
   Settings.swift                      UserDefaults 설정 모델
@@ -67,7 +67,7 @@ Resources/AppIcon.icns                빌드에 포함하는 앱 아이콘
 scripts/make-icon.swift               AppKit/CoreGraphics로 1024px PNG 그리기
 scripts/make-icon.sh                  PNG 크기별 변환 및 icns 생성
 build.sh                             앱 빌드, 번들 생성, 선택적 설치
-build/AutoBright.app                  빌드 결과 (Git 제외)
+build/LidLux.app                  빌드 결과 (Git 제외)
 ```
 
 아이콘 디자인을 변경한 뒤 다음 명령으로 다시 생성합니다. 각 크기(16, 32, 128, 256, 512)와 @2x PNG를 만들고 `iconutil`로 묶습니다. 중간 PNG와 iconset은 임시 생성 후 삭제하며, `Resources/AppIcon.icns`를 저장소에 포함합니다.

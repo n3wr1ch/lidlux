@@ -6,7 +6,7 @@ import os
 /// 사용자가 밝기 키로 직접 바꾸면 그 차이를 오프셋으로 학습해 이후에도 반영한다.
 final class BrightnessController {
     private var sensor: AmbientLightSensor?
-    private let logger = Logger(subsystem: "com.ntoktok.autobright", category: "controller")
+    private let logger = Logger(subsystem: "com.ntoktok.lidlux", category: "controller")
     private var sensorFailures = 0
     private var displayWasAvailable = false
     private var isSleeping = false

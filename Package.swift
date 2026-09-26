@@ -2,9 +2,9 @@
 import PackageDescription
 
 let package = Package(
-    name: "AutoBright",
+    name: "LidLux",
     platforms: [.macOS(.v13)],
     targets: [
-        .executableTarget(name: "AutoBright", path: "Sources/AutoBright")
+        .executableTarget(name: "LidLux", path: "Sources/LidLux")
     ]
 )
