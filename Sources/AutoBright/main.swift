@@ -1,9 +1,11 @@
 import AppKit
 import ServiceManagement
+import os
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
-    private var statusItem: NSStatusItem!
-    private var controller: BrightnessController!
+    private let logger = Logger(subsystem: "com.ntoktok.autobright", category: "app")
+    private var statusItem: NSStatusItem?
+    private var controller: BrightnessController?
 
     private let statusLine = NSMenuItem(title: "", action: nil, keyEquivalent: "")
     private let offsetLine = NSMenuItem(title: "", action: nil, keyEquivalent: "")
@@ -11,25 +13,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let loginItem = NSMenuItem(title: "로그인 시 실행", action: #selector(toggleLogin), keyEquivalent: "")
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        logger.info("AutoBright launching")
         guard let sensor = AmbientLightSensor(), let display = BuiltinDisplay() else {
+            logger.error("Unable to initialize ambient light sensor or display API")
             let alert = NSAlert()
             alert.messageText = "조도 센서 또는 내장 디스플레이를 찾을 수 없습니다."
             alert.runModal()
             NSApp.terminate(nil)
             return
         }
-        controller = BrightnessController(sensor: sensor, display: display)
+        let controller = BrightnessController(sensor: sensor, display: display)
+        self.controller = controller
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         buildMenu()
         controller.onUpdate = { [weak self] in self?.refresh() }
 
         let center = NSWorkspace.shared.notificationCenter
-        for name in [NSWorkspace.didWakeNotification, NSWorkspace.screensDidWakeNotification, NSWorkspace.sessionDidBecomeActiveNotification] {
-            center.addObserver(self, selector: #selector(resync), name: name, object: nil)
+        for name in [NSWorkspace.didWakeNotification, NSWorkspace.screensDidWakeNotification, NSWorkspace.sessionDidBecomeActiveNotification, NSWorkspace.willSleepNotification, NSWorkspace.screensDidSleepNotification] {
+            center.addObserver(self, selector: #selector(resync(_:)), name: name, object: nil)
         }
         NotificationCenter.default.addObserver(
-            self, selector: #selector(resync),
+            self, selector: #selector(resync(_:)),
             name: NSApplication.didChangeScreenParametersNotification, object: nil)
 
         if controller.isEnabled { controller.start() }
@@ -53,10 +58,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         loginItem.target = self
         menu.addItem(loginItem)
         menu.addItem(NSMenuItem(title: "종료", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
-        statusItem.menu = menu
+        statusItem?.menu = menu
     }
 
     private func refresh() {
+        guard let controller, let statusItem else { return }
         let on = controller.isEnabled
         statusItem.button?.image = NSImage(
             systemSymbolName: on ? "sun.max.fill" : "sun.max",
@@ -74,16 +80,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func menuWillOpen(_ menu: NSMenu) { refresh() }
 
     @objc private func toggleEnabled() {
+        guard let controller else { return }
         controller.isEnabled.toggle()
         refresh()
     }
 
     @objc private func resetOffset() {
-        controller.resetOffset()
+        controller?.resetOffset()
     }
 
-    @objc private func resync() {
-        controller.resync()
+    @objc private func resync(_ notification: Notification) {
+        let reason = notification.name.rawValue
+        switch notification.name {
+        case NSWorkspace.willSleepNotification, NSWorkspace.screensDidSleepNotification:
+            controller?.setSleeping(true, reason: reason)
+        case NSWorkspace.didWakeNotification, NSWorkspace.screensDidWakeNotification,
+             NSWorkspace.sessionDidBecomeActiveNotification:
+            controller?.setSleeping(false, reason: reason)
+        default:
+            controller?.resync(reason: reason)
+        }
     }
 
     @objc private func toggleLogin() {

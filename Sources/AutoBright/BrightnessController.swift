@@ -1,10 +1,16 @@
 import CoreGraphics
 import Foundation
+import os
 
 /// 조도 센서 값을 읽어 내장 디스플레이 밝기를 부드럽게 조절한다.
 /// 사용자가 밝기 키로 직접 바꾸면 그 차이를 오프셋으로 학습해 이후에도 반영한다.
 final class BrightnessController {
-    private let sensor: AmbientLightSensor
+    private var sensor: AmbientLightSensor?
+    private let logger = Logger(subsystem: "com.ntoktok.autobright", category: "controller")
+    private var sensorFailures = 0
+    private var displayWasAvailable = false
+    private var isSleeping = false
+    private var learningAfter: TimeInterval = 0
     private let display: BuiltinDisplay
     private let defaults = UserDefaults.standard
 
@@ -75,7 +81,8 @@ final class BrightnessController {
 
     func start() {
         guard sampleTimer == nil else { return }
-        resync()
+        resync(reason: "start")
+        logger.info("Automatic brightness started")
         let timer = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in self?.sample() }
         RunLoop.main.add(timer, forMode: .common)
         sampleTimer = timer
@@ -90,40 +97,94 @@ final class BrightnessController {
     }
 
     /// 잠자기 해제, 디스플레이 구성 변경 등 이후 상태를 새로 잡는다.
-    func resync() {
+    func resync(reason: String = "requested") {
         stopAnimation()
         lastSet = nil
         goal = nil
         suspendedUntilActivity = false
+        manualUntil = .distantPast
+        smoothedLogLux = nil
+        learningAfter = ProcessInfo.processInfo.systemUptime + 3
+        logger.info("Resync: \(reason, privacy: .public)")
+    }
+
+    func setSleeping(_ sleeping: Bool, reason: String) {
+        isSleeping = sleeping
+        resync(reason: reason)
     }
 
     func resetOffset() {
         offset = 0
         manualUntil = .distantPast
-        sample()
+        if isEnabled { sample() }
     }
 
     private var secondsSinceUserActivity: Double {
-        CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: CGEventType(rawValue: ~0)!)
+        guard let eventType = CGEventType(rawValue: UInt32.max) else { return .infinity }
+        return CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: eventType)
     }
 
     private func sample() {
         defer { onUpdate?() }
 
-        guard let lux = sensor.lux(), let actual = display.brightness else { return }
+        guard !isSleeping else { return }
+        guard let actual = display.brightness else {
+            if displayWasAvailable {
+                resync(reason: "built-in display unavailable")
+            }
+            displayWasAvailable = false
+            return
+        }
+        if !displayWasAvailable {
+            resync(reason: "built-in display available")
+            displayWasAvailable = true
+        }
+
+        guard let lux = sensor?.lux() else {
+            if sensorFailures == 0 { resync(reason: "sensor read unavailable") }
+            lastLux = nil
+            sensorFailures += 1
+            if sensorFailures >= 5 {
+                sensorFailures = 0
+                sensor = AmbientLightSensor()
+                logger.notice("Recreated ambient light sensor; available: \(self.sensor != nil)")
+                resync(reason: "consecutive sensor read failures")
+            }
+            return
+        }
+        if sensorFailures > 0 { resync(reason: "sensor readings recovered") }
+        sensorFailures = 0
         lastLux = lux
 
         let logLux = log10(max(lux, 0) + 1)
+        let smoothed: Double
         if let s = smoothedLogLux {
             // 밝아질 때는 빠르게, 어두워질 때는 천천히 따라간다
             let alpha = logLux > s ? 0.35 : 0.12
-            smoothedLogLux = s + (logLux - s) * alpha
+            smoothed = s + (logLux - s) * alpha
         } else {
-            smoothedLogLux = logLux
+            smoothed = logLux
         }
-        let base = Self.baseBrightness(forLogLux: smoothedLogLux!)
+        smoothedLogLux = smoothed
+        let base = Self.baseBrightness(forLogLux: smoothed)
+
+        // 화면 복귀 직후 OS가 적용하는 밝기는 학습하지 않고 기준만 갱신한다.
+        if ProcessInfo.processInfo.systemUptime < learningAfter {
+            stopAnimation()
+            lastSet = actual
+            goal = actual
+            return
+        }
 
         let idle = secondsSinceUserActivity
+
+        if suspendedUntilActivity {
+            guard idle < 2 else { return }
+            resync(reason: "user activity resumed")
+            lastSet = actual
+            goal = actual
+            return
+        }
 
         // 우리가 설정하지 않은 밝기 변화 감지
         if let lastSet, abs(actual - lastSet) > 0.015 {
@@ -134,17 +195,15 @@ final class BrightnessController {
                 // 사용자가 밝기 키로 직접 조절함 → 선호도로 학습
                 offset = actual - base
                 manualUntil = Date().addingTimeInterval(4)
+                logger.info("Learned user adjustment: brightness=\(actual), offset=\(self.offset)")
             } else {
                 // 자리를 비운 사이 시스템이 바꿈(유휴 디밍 등) → 사용자가 돌아올 때까지 건드리지 않음
                 suspendedUntilActivity = true
+                logger.info("Suspended after system brightness change while idle")
             }
             return
         }
 
-        if suspendedUntilActivity {
-            guard idle < 2 else { return }
-            suspendedUntilActivity = false
-        }
         if Date() < manualUntil { return }
 
         let target = max(Self.minimumBrightness, min(1, base + offset))
@@ -187,8 +246,8 @@ final class BrightnessController {
         if display.setBrightness(value) {
             lastSet = value
         } else {
-            stopAnimation()
-            lastSet = nil
+            resync(reason: "brightness write failed")
+            displayWasAvailable = false
         }
     }
 }

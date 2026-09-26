@@ -16,6 +16,8 @@ final class AmbientLightSensor {
     private typealias GetFloatValue = @convention(c) (AnyObject, Int32) -> Double
 
     private static let eventTypeAmbientLight: Int64 = 12
+    // 재생성마다 dlopen 참조 횟수가 늘지 않도록 프로세스 수명 동안 공유한다.
+    private static let iokit = dlopen("/System/Library/Frameworks/IOKit.framework/IOKit", RTLD_NOW)
 
     private let copyEvent: CopyEvent
     private let getFloatValue: GetFloatValue
@@ -24,7 +26,7 @@ final class AmbientLightSensor {
     private let service: AnyObject
 
     init?() {
-        let iokit = dlopen("/System/Library/Frameworks/IOKit.framework/IOKit", RTLD_NOW)
+        let iokit = Self.iokit
         guard
             let create = loadSymbol(iokit, "IOHIDEventSystemClientCreate", as: ClientCreate.self),
             let setMatching = loadSymbol(iokit, "IOHIDEventSystemClientSetMatching", as: SetMatching.self),
@@ -50,7 +52,8 @@ final class AmbientLightSensor {
     func lux() -> Double? {
         let type = Self.eventTypeAmbientLight
         guard let event = copyEvent(service, type, 0, 0)?.takeRetainedValue() else { return nil }
-        return getFloatValue(event, Int32(type << 16))
+        let value = getFloatValue(event, Int32(type << 16))
+        return value.isFinite && value >= 0 ? value : nil
     }
 }
 
@@ -85,12 +88,13 @@ final class BuiltinDisplay {
     var brightness: Float? {
         guard let id = displayID else { return nil }
         var value: Float = 0
-        return getBrightness(id, &value) == 0 ? value : nil
+        guard getBrightness(id, &value) == 0, value.isFinite, (0...1).contains(value) else { return nil }
+        return value
     }
 
     @discardableResult
     func setBrightness(_ value: Float) -> Bool {
-        guard let id = displayID else { return false }
+        guard value.isFinite, let id = displayID else { return false }
         return setBrightness(id, min(max(value, 0), 1)) == 0
     }
 }
