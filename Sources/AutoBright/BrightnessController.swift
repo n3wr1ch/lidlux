@@ -82,7 +82,7 @@ final class BrightnessController {
     func start() {
         guard sampleTimer == nil else { return }
         resync(reason: "start")
-        logger.info("Automatic brightness started")
+        logger.notice("Automatic brightness started")
         let timer = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in self?.sample() }
         RunLoop.main.add(timer, forMode: .common)
         sampleTimer = timer
@@ -105,7 +105,7 @@ final class BrightnessController {
         manualUntil = .distantPast
         smoothedLogLux = nil
         learningAfter = ProcessInfo.processInfo.systemUptime + 3
-        logger.info("Resync: \(reason, privacy: .public)")
+        logger.notice("Resync: \(reason, privacy: .public)")
     }
 
     func setSleeping(_ sleeping: Bool, reason: String) {
@@ -195,11 +195,11 @@ final class BrightnessController {
                 // 사용자가 밝기 키로 직접 조절함 → 선호도로 학습
                 offset = actual - base
                 manualUntil = Date().addingTimeInterval(4)
-                logger.info("Learned user adjustment: brightness=\(actual), offset=\(self.offset)")
+                logger.notice("Learned user adjustment: brightness=\(actual), offset=\(self.offset)")
             } else {
                 // 자리를 비운 사이 시스템이 바꿈(유휴 디밍 등) → 사용자가 돌아올 때까지 건드리지 않음
                 suspendedUntilActivity = true
-                logger.info("Suspended after system brightness change while idle")
+                logger.notice("Suspended after system brightness change while idle")
             }
             return
         }

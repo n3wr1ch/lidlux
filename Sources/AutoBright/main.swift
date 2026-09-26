@@ -13,7 +13,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let loginItem = NSMenuItem(title: "로그인 시 실행", action: #selector(toggleLogin), keyEquivalent: "")
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        logger.info("AutoBright launching")
+        logger.notice("AutoBright launching")
         guard let sensor = AmbientLightSensor(), let display = BuiltinDisplay() else {
             logger.error("Unable to initialize ambient light sensor or display API")
             let alert = NSAlert()
