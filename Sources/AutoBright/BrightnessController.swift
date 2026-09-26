@@ -12,7 +12,8 @@ final class BrightnessController {
     private var isSleeping = false
     private var learningAfter: TimeInterval = 0
     private let display: BuiltinDisplay
-    private let defaults = UserDefaults.standard
+    let settings: Settings
+    private var settingsChanged = false
 
     private var sampleTimer: Timer?
     private var animationTimer: Timer?
@@ -34,24 +35,31 @@ final class BrightnessController {
     // MARK: 설정 (UserDefaults)
 
     var isEnabled: Bool {
-        get { defaults.object(forKey: "enabled") as? Bool ?? true }
-        set {
-            defaults.set(newValue, forKey: "enabled")
-            newValue ? start() : stop()
-        }
+        get { settings.isEnabled }
+        set { settings.isEnabled = newValue }
     }
 
     /// 사용자 선호 보정값 (-1 ~ 1)
     private(set) var offset: Float {
-        get { defaults.float(forKey: "offset") }
-        set { defaults.set(max(-1, min(1, newValue)), forKey: "offset") }
+        get { settings.offset }
+        set { settings.offset = newValue }
     }
 
     var currentBrightness: Float? { display.brightness }
 
-    init(sensor: AmbientLightSensor, display: BuiltinDisplay) {
+    init(sensor: AmbientLightSensor, display: BuiltinDisplay, settings: Settings = Settings()) {
         self.sensor = sensor
         self.display = display
+        self.settings = settings
+        settings.onChange = { [weak self] key in
+            guard let self else { return }
+            if key == "enabled" {
+                self.isEnabled ? self.start() : self.stop()
+            } else {
+                self.settingsChanged = true
+            }
+            self.onUpdate?()
+        }
     }
 
     // MARK: 곡선
@@ -74,8 +82,6 @@ final class BrightnessController {
         }
         return Float(points[points.count - 1].y)
     }
-
-    private static let minimumBrightness: Float = 0.03
 
     // MARK: 동작
 
@@ -115,6 +121,8 @@ final class BrightnessController {
 
     func resetOffset() {
         offset = 0
+        settingsChanged = true
+        logger.notice("Reset learned adjustment")
         manualUntil = .distantPast
         if isEnabled { sample() }
     }
@@ -160,7 +168,8 @@ final class BrightnessController {
         let smoothed: Double
         if let s = smoothedLogLux {
             // 밝아질 때는 빠르게, 어두워질 때는 천천히 따라간다
-            let alpha = logLux > s ? 0.35 : 0.12
+            let speed = settings.responseSpeed
+            let alpha = logLux > s ? speed.brighteningAlpha : speed.darkeningAlpha
             smoothed = s + (logLux - s) * alpha
         } else {
             smoothed = logLux
@@ -193,7 +202,7 @@ final class BrightnessController {
             goal = actual
             if idle < 5 {
                 // 사용자가 밝기 키로 직접 조절함 → 선호도로 학습
-                offset = actual - base
+                offset = actual - base - Float(settings.brightnessBias)
                 manualUntil = Date().addingTimeInterval(4)
                 logger.notice("Learned user adjustment: brightness=\(actual), offset=\(self.offset)")
             } else {
@@ -206,13 +215,14 @@ final class BrightnessController {
 
         if Date() < manualUntil { return }
 
-        let target = max(Self.minimumBrightness, min(1, base + offset))
+        let target = settings.appliedBrightness(forLogLux: smoothed)
         let reference = goal ?? actual
         // 작은 변화는 무시해서 밝기가 계속 꿈틀거리지 않게 한다
-        guard abs(target - reference) >= 0.025 || (lastSet == nil && abs(target - actual) >= 0.005) else {
+        guard settingsChanged || abs(target - reference) >= 0.025 || (lastSet == nil && abs(target - actual) >= 0.005) else {
             if lastSet == nil { lastSet = actual }
             return
         }
+        settingsChanged = false
         goal = target
         if lastSet == nil { lastSet = actual }
         startAnimation()
@@ -238,7 +248,7 @@ final class BrightnessController {
             return stopAnimation()
         }
         // 차이에 비례해 감속하면서 이동 (최소 속도 보장)
-        let step = max(abs(diff) * 0.08, 0.002)
+        let step = max(abs(diff) * settings.responseSpeed.animationStep, 0.002)
         apply(current + (diff > 0 ? min(step, diff) : max(-step, diff)))
     }
 

@@ -6,6 +6,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let logger = Logger(subsystem: "com.ntoktok.autobright", category: "app")
     private var statusItem: NSStatusItem?
     private var controller: BrightnessController?
+    private var settingsWindow: SettingsWindow?
+    private var biasMenuView: BiasMenuView?
 
     private let statusLine = NSMenuItem(title: "", action: nil, keyEquivalent: "")
     private let offsetLine = NSMenuItem(title: "", action: nil, keyEquivalent: "")
@@ -48,6 +50,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         offsetLine.isEnabled = false
         menu.addItem(statusLine)
         menu.addItem(offsetLine)
+        if let controller {
+            let view = BiasMenuView(settings: controller.settings)
+            biasMenuView = view
+            let item = NSMenuItem()
+            item.view = view
+            menu.addItem(item)
+        }
         menu.addItem(.separator())
         enabledItem.target = self
         menu.addItem(enabledItem)
@@ -55,6 +64,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         reset.target = self
         menu.addItem(reset)
         menu.addItem(.separator())
+        let settingsItem = NSMenuItem(title: "설정…", action: #selector(openSettings), keyEquivalent: ",")
+        settingsItem.keyEquivalentModifierMask = .command
+        settingsItem.target = self
+        menu.addItem(settingsItem)
         loginItem.target = self
         menu.addItem(loginItem)
         menu.addItem(NSMenuItem(title: "종료", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
@@ -63,6 +76,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func refresh() {
         guard let controller, let statusItem else { return }
+        biasMenuView?.refresh()
         let on = controller.isEnabled
         statusItem.button?.image = NSImage(
             systemSymbolName: on ? "sun.max.fill" : "sun.max",
@@ -78,6 +92,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func menuWillOpen(_ menu: NSMenu) { refresh() }
+
+    @objc private func openSettings() {
+        guard let controller else { return }
+        if settingsWindow == nil { settingsWindow = SettingsWindow(controller: controller) }
+        settingsWindow?.present()
+    }
 
     @objc private func toggleEnabled() {
         guard let controller else { return }
