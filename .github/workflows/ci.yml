@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Show Swift version
+        run: swift --version
+      - name: Run tests
+        run: ./scripts/test.sh
+      - name: Build app
+        run: ./build.sh
+      - name: Verify app bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          app=build/LidLux.app
+          plist="$app/Contents/Info.plist"
+          plutil -lint "$plist"
+          for entry in \
+            CFBundleName=LidLux \
+            CFBundleIdentifier=com.ntoktok.lidlux \
+            CFBundleExecutable=LidLux \
+            CFBundleIconFile=AppIcon \
+            CFBundlePackageType=APPL \
+            CFBundleShortVersionString=1.0 \
+            CFBundleVersion=1 \
+            LSMinimumSystemVersion=13.0 \
+            LSUIElement=true; do
+            test "$(/usr/libexec/PlistBuddy -c "Print :${entry%%=*}" "$plist")" = "${entry#*=}"
+          done
+          test -x "$app/Contents/MacOS/LidLux"
+          test -s "$app/Contents/Resources/AppIcon.icns"
+          test "$(uname -m)" = arm64
+          codesign --verify --deep --strict --verbose=2 "$app"

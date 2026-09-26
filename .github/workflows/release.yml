@@ -1,0 +1,58 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set release version
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: |
+          set -euo pipefail
+          version="${TAG#v}"
+          if [[ ! "$version" =~ ^[0-9]+(\.[0-9]+){0,2}$ ]]; then
+            echo "Expected a numeric version tag such as v1.2.3" >&2
+            exit 1
+          fi
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+          echo "BUILD_NUMBER=$BUILD_NUMBER" >> "$GITHUB_ENV"
+      - name: Show Swift version
+        run: swift --version
+      - name: Run tests
+        run: ./scripts/test.sh
+      - name: Build release archive
+        run: ./build.sh zip
+      - name: Create release notes
+        run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+
+          template = Path('.github/release-notes-template.md').read_text()
+          Path('build/release-notes.md').write_text(
+              template.replace('{{VERSION}}', os.environ['VERSION'])
+          )
+          PY
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$TAG" \
+            "build/LidLux-$VERSION.zip" \
+            "build/LidLux-$VERSION.zip.sha256" \
+            --verify-tag \
+            --title "LidLux $VERSION" \
+            --notes-file build/release-notes.md \
+            --generate-notes
