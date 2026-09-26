@@ -11,13 +11,12 @@ The Release workflow tests the app on an Apple Silicon `macos-15` runner, builds
 
 Release notes combine `.github/release-notes-template.md` with GitHub's generated change notes. No Apple Developer account or signing secrets are required. Check the workflow result and the two release assets on GitHub after pushing.
 
-## Update the Homebrew cask
+## Homebrew cask
 
-After the release is published, update [n3wr1ch/homebrew-tap](https://github.com/n3wr1ch/homebrew-tap) `Casks/lidlux.rb` with the new version and the SHA-256 from the release asset, then push:
+The cask in [n3wr1ch/homebrew-tap](https://github.com/n3wr1ch/homebrew-tap) updates itself: its `update-lidlux.yml` workflow checks the latest release every hour, verifies the checksum, updates `Casks/lidlux.rb`, runs `brew style`/`brew audit`, and commits. No token is needed. To update right after publishing a release:
 
 ```sh
-cd ../homebrew-tap
-sed -i '' -e 's/version ".*"/version "1.2.3"/' -e 's/sha256 ".*"/sha256 "<sha256 from LidLux-1.2.3.zip.sha256>"/' Casks/lidlux.rb
-brew style Casks/lidlux.rb && brew audit --cask --strict --online n3wr1ch/tap/lidlux
-git commit -am "lidlux 1.2.3" && git push
+gh workflow run update-lidlux.yml -R n3wr1ch/homebrew-tap
 ```
+
+GitHub disables scheduled workflows in a repository with no activity for 60 days. If that happens, re-enable it from the tap's Actions tab (or run the command above).
