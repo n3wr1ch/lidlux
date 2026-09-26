@@ -1,118 +1,183 @@
 # LidLux
 
-외부 모니터 연결 후 MacBook 내장 디스플레이의 자동 밝기가 멈추는 문제를 해결하기 위한 macOS 메뉴바 앱입니다. 내장 조도 센서를 직접 읽어 주변 밝기에 맞춰 **내장 디스플레이와 DDC/CI 지원 외부 모니터** 밝기를 조절합니다. 외부 모니터가 여러 대면 각각 제어하며, 내장·외부 자동 조절을 독립적으로 켜고 끌 수 있습니다.
+[English](README.md) | [한국어](README.ko.md)
 
-## 설치
+[![CI](https://github.com/n3wr1ch/lidlux/actions/workflows/ci.yml/badge.svg)](https://github.com/n3wr1ch/lidlux/actions/workflows/ci.yml)
 
-Apple Silicon MacBook과 Command Line Tools가 필요합니다. macOS 27 사용 환경을 대상으로 하며, 패키지의 최소 macOS 버전은 13입니다. Xcode 앱은 필요하지 않습니다.
+**Ambient light–based brightness control for your MacBook and external monitors.**
 
-프로젝트 폴더에서 실행합니다.
+When macOS automatic brightness stops working after you connect an external monitor, LidLux reads the MacBook’s built-in ambient light sensor directly and adjusts the built-in display and DDC/CI-compatible external monitors from the menu bar.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/settings-dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="docs/images/settings-light.png">
+  <img src="docs/images/settings-light.png" alt="LidLux settings with brightness preferences, ambient light readings, and a brightness curve preview" width="560">
+</picture>
+
+## Features
+
+- **Automatic brightness:** a logarithmic light curve with smoothing and gradual brightness transitions. Built-in and external automatic control can be enabled independently.
+- **Learning by light level:** adjust brightness with the brightness keys or your monitor’s buttons while automatic control is on. LidLux remembers detected adjustments around that light level, keeping up to **8 points per curve** and interpolating brightness between them. The learned curve keeps target brightness from decreasing as ambient light increases. Built-in and external learning are separate; external monitors share one learned curve.
+- **DDC/CI control:** adjust the hardware brightness of compatible external monitors.
+- **Brightness keys and HUD:** control the external screen under the pointer and see an on-screen brightness indicator after a successful write.
+- **Idle dimming awareness:** built-in display dimming while you are away is not learned as a preference or immediately undone.
+- **Clamshell pause:** automatic adjustment pauses for both built-in and external displays when the lid is closed and the built-in display is inactive.
+- **English and Korean UI:** Korean when the first preferred system language is Korean; English otherwise.
+
+## Requirements
+
+- An **Apple Silicon MacBook** with a built-in ambient light sensor.
+- **macOS 13 or later.** Compatibility depends on private APIs; see [Limitations](#limitations).
+- For external control, a **DDC/CI-compatible monitor** with DDC/CI enabled in its on-screen menu (OSD). Support varies by monitor, cable, and dock; **HDMI may not work on some models**.
+
+## Install
+
+### Download a release
+
+1. Download the LidLux ZIP from [GitHub Releases](https://github.com/n3wr1ch/lidlux/releases) and unzip it.
+2. Move `LidLux.app` to `/Applications` and open it.
+3. If macOS blocks the first launch, go to **System Settings → Privacy & Security → Open Anyway** and confirm.
+
+LidLux is ad-hoc signed, **not Developer ID signed or notarized**. Alternatively, after downloading from this repository and verifying the release checksum, remove the quarantine attribute and open the app again:
+
+```sh
+xattr -dr com.apple.quarantine /Applications/LidLux.app
+```
+
+The release notes include checksum verification instructions.
+
+### Build from source
+
+Install Apple’s Command Line Tools; the full Xcode app is not required. From the repository directory, run:
 
 ```sh
 ./build.sh install
 ```
 
-릴리스 빌드와 앱 번들 생성, 로컬 임시 서명(ad-hoc)을 수행한 뒤 `/Applications/LidLux.app`에 설치하고 실행합니다. 기존 LidLux가 실행 중이면 종료하고 설치본을 교체합니다.
+This builds and ad-hoc signs the app, replaces `/Applications/LidLux.app`, and launches it. An existing LidLux process is stopped first. To build without installing or launching, run `./build.sh`; the result is `build/LidLux.app`.
 
-빌드만 하려면 `./build.sh`를 실행합니다. 결과는 `build/LidLux.app`입니다.
+## Usage
 
-## 사용법
+Click the sun icon in the menu bar. Built-in automatic control, external automatic control, and external brightness keys are enabled by default.
 
-Dock 창 대신 메뉴바에 태양 아이콘이 표시됩니다. 아이콘을 누르면 다음 항목을 확인할 수 있습니다.
+**Recommended:** turn off **System Settings → Displays → Automatically adjust brightness** for the built-in display. Otherwise, macOS and LidLux can compete, and system changes may be learned as your preferences.
 
-| 메뉴 | 동작 |
+Avoid running LidLux alongside **Lunar or MonitorControl**. LidLux shows a conflict warning in the menu and settings when either app is running. Quit the other app or disable its brightness control; its changes may otherwise be learned as manual adjustments.
+
+### Menu
+
+| Item | Purpose |
 | --- | --- |
-| 조도 · 밝기 | 센서 조도(lux)와 현재 내장 디스플레이 밝기 표시 |
-| 선호 보정 | 현재 조도의 보정값과 학습 지점 수 표시 |
-| 밝기 성향 | 슬라이더로 전체 밝기를 어둡게/밝게 조절 (−30~+30%) |
-| 설정… (⌘,) | 밝기 설정, 실시간 상태와 곡선 미리보기 |
-| 자동 밝기 조절 | 내장 화면 자동 조절 켜기/끄기 |
-| 외부 모니터도 조절 | 외부 모니터 자동 조절 켜기/끄기 (기본 켜짐) |
-| 밝기 키로 외부 모니터 조절 | 커서가 있는 외부 화면의 밝기를 키로 조절 (기본 켜짐) |
-| 외부 모니터 상태 | 모니터별 이름과 밝기, 제어 앱 충돌 경고 |
-| 보정값 초기화 | 내장 학습 지점 전체 삭제 |
-| 로그인 시 실행 | 로그인할 때 앱이 실행되도록 등록/해제 |
-| 종료 | 앱 종료 |
+| Ambient light / Brightness | Current sensor reading and built-in display brightness |
+| Adjustment / Learned points | Learned adjustment at the current light level and point count |
+| Brightness preference | Make the built-in curve darker or brighter |
+| Automatically adjust brightness | Toggle built-in automatic control |
+| Also adjust external monitors | Toggle external automatic control; monitor status and conflict warnings appear below |
+| Use brightness keys for external monitors | Toggle external keyboard control and check its status |
+| Open Accessibility Settings… | Grant keyboard-control permission; shown when permission is missing |
+| Reset Learned Adjustments | Clear built-in learned points |
+| Settings… (⌘,) | Open brightness settings and curve previews |
+| Launch at Login | Enable or disable startup at login |
+| Quit LidLux | Quit the app |
 
-처음 실행하면 자동 조절이 켜져 있습니다. 너무 밝거나 어두우면 평소처럼 밝기 키로 조절하세요. 자동 조절 설정과 선호 보정값은 저장됩니다.
+### Settings
 
-설정 창에서 **밝기 성향**(기본 0), **최소 밝기**(0~30%, 기본 3%), **반응 속도**(느림/보통/빠름, 기본 보통)를 바꿀 수 있습니다. 변경 내용은 저장되고 다음 조도 샘플부터 부드럽게 반영됩니다. 수동 조절 대기·유휴 디밍·복귀 유예는 유지됩니다. 그래프는 기본 곡선과 성향·학습 보정·최소 밝기를 반영한 적용 곡선을 보여 줍니다. **기본값으로 되돌리기**는 밝기 설정과 학습 보정을 초기화하고 자동 조절을 켭니다(로그인 실행 설정은 유지).
+- **Brightness preference:** −30% to +30%, default 0, for built-in and external displays separately. This is an additive curve adjustment.
+- **Minimum brightness:** 0–30%, default 3%, for the built-in display.
+- **Response speed:** Slow, Normal, or Fast; default Normal.
+- **Live status and graphs:** ambient light, current brightness, learned adjustments, and default/adjusted curves with learned points.
+- **External Monitor:** automatic control, brightness keys, Accessibility settings, brightness preference, learned-point reset, monitor brightness, and conflict warnings. External brightness reflects the last read or successful write, so monitor-button changes appear on a later read.
+- **Reset Learned Adjustments / Restore Defaults:** clear built-in learning, or restore brightness settings and both learned curves. Restore Defaults also enables automatic control and external brightness keys; it preserves Launch at Login.
 
-**권장:** 시스템 설정 → 디스플레이에서 내장 디스플레이의 **“자동으로 밝기 조절”을 끄세요.** 시스템과 LidLux가 동시에 밝기를 바꾸면 서로 간섭하거나 시스템의 변경을 사용자 선호로 인식할 수 있습니다.
+Settings and learned points are saved automatically.
 
-## 외부 모니터 (DDC/CI)
+### Brightness keys
 
-모니터 OSD에서 **DDC/CI를 켜야** 합니다. Apple Silicon의 외부 디스플레이 서비스를 통해 밝기 VCP(0x10)를 읽고 씁니다. 연결 방식·케이블·허브·모니터에 따라 지원이 다르며 **HDMI는 기종에 따라 동작하지 않을 수 있습니다.** 프로토콜은 Dell P2723QE에서 확인된 방식을 사용합니다.
+Allow LidLux in **System Settings → Privacy & Security → Accessibility**. You can open that pane from LidLux’s menu or settings. Permission is checked periodically, so a restart is not normally needed after granting it.
 
-설정 창의 **외부 모니터** 섹션에서 자동 조절, 밝기 성향(−30~+30%, 기본 0), 학습된 보정값과 초기화 버튼, 감지된 모니터별 밝기를 확인할 수 있습니다. 외부 학습 지점은 내장과 별개이며 외부 모니터들이 공유합니다. 외부 섹션의 그래프에도 적용 곡선과 학습 지점이 표시됩니다. 외부 최소 밝기는 기본 0%입니다. 기본값 복원에 외부 설정도 포함됩니다. 표시 밝기는 마지막으로 읽거나 성공적으로 쓴 값이며, OSD 변경은 다음 읽기 때 반영됩니다.
+Place the pointer on an external screen and press the brightness keys (usually F1/F2). Hold **Fn** as well if your keyboard uses standard function keys. Each press changes brightness by **1/16 of the monitor’s maximum (6.25%)**; **Option+Shift** uses **1/64 (about 1.56%)**, rounded to the monitor’s integer units. A successful adjustment shows a HUD on that screen.
 
-외부 화면은 같은 평활화 조도 곡선을 사용하되, 목표와 기준값 차이가 3 이상일 때 최소 1초 간격으로 최대 8 VCP 단위씩 움직입니다. 약 10초마다 밝기를 읽습니다(마지막 쓰기 후 3초간은 읽기를 미루며, 읽기 시점에는 쓰기를 잠시 멈춥니다). 예상값과 3 이상 다르면 수동 조절로 학습하고 해당 모니터의 쓰기를 5초 쉽니다. 시작·재연결 때 현재 밝기를 기준으로 잡고 첫 5초는 학습과 쓰기를 보류합니다. 반복 실패한 모니터는 다음 재열거까지 건너뜁니다. 잠자기 중 새 I/O를 시작하지 않으며, 이미 진행 중인 IOKit 호출은 취소할 수 없습니다.
+With the pointer on the built-in screen, the keys retain their normal macOS behavior. External key control also works with external automatic control disabled, but learning requires automatic control to be on. Monitor selection has [name-matching limitations](#limitations).
 
-**Lunar 또는 MonitorControl과 동시에 사용하면 밝기 제어가 충돌할 수 있습니다.** 해당 앱이 실행 중이면 메뉴와 설정 창에 경고가 표시됩니다. 다른 앱의 자동 밝기 기능을 끄거나 종료하세요. 충돌 앱의 변경도 사용자 보정으로 학습될 수 있습니다.
-
-## 밝기 키로 외부 모니터 조절
-
-**마우스 커서를 외부 화면에 놓고 밝기 키(F1/F2)를 누르면** DDC로 외부 밝기를 조절하고 키 이벤트를 차단해 내장 밝기는 바뀌지 않습니다. 커서가 내장 화면에 있으면 macOS의 기존 밝기 조절과 LidLux의 내장 학습이 유지됩니다. 반복 입력도 그때의 커서 위치를 따르며, 가로챈 키의 키 업 이벤트도 차단합니다. 기능 키를 표준 F1/F2로 사용하는 설정에서는 Fn 키도 함께 누르세요.
-
-한 번에 최대 밝기의 1/16(6.25%)씩, **Option+Shift**를 함께 누르면 1/64(약 1.56%)씩 조절합니다(모니터 정수 단위로 반올림). 쓰기에 성공하면 해당 외부 화면 하단에 밝기 HUD를 표시합니다. 외부 모니터가 여러 대면 화면 이름과 같은 모니터를 조절하며, 이름을 대응할 수 없으면 감지된 외부 모니터 모두를 조절합니다. 이 경우 HUD는 마지막으로 쓰기에 성공한 모니터의 밝기입니다. 외부 **자동 조절을 꺼도 키 조절은 사용 가능**합니다. 키 조절 직후 자동 쓰기를 잠시 멈추고, 후속 읽기의 기존 경로에서 학습합니다(자동 조절이 켜져 있고 학습 조건을 만족할 때).
-
-이 기능에는 **손쉬운 사용 권한**이 필요합니다. 처음 활성화하면 시스템 권한 안내가 표시됩니다. 메뉴 또는 설정 창의 **손쉬운 사용 설정 열기…**를 눌러 시스템 설정 → 개인정보 보호 및 보안 → 손쉬운 사용에서 LidLux를 허용하세요. 권한이 없으면 “손쉬운 사용 권한 필요”를 표시하고 키는 가로채지 않습니다. 권한은 2초마다 확인하므로 부여한 뒤 앱을 다시 실행할 필요가 없습니다.
-
-**ad-hoc 서명이라 다시 빌드할 때마다 권한을 다시 줘야 할 수 있습니다.** 허용했는데 작동하지 않으면 시스템 설정의 손쉬운 사용 목록에서 기존 LidLux 항목을 지운 뒤 새로 빌드한 앱을 다시 추가하세요.
-
-## 동작 원리
-
-1. **조도 센서 → 로그 곡선:** 0.5초마다 내장 조도 센서를 읽고 `log10(lux + 1)`로 변환합니다. 로그 조도에 지수이동평균을 적용한 뒤 구간별 곡선으로 목표 밝기를 계산합니다. 밝아질 때는 빠르게, 어두워질 때는 천천히 반응합니다.
-2. **부드러운 전환:** 작은 목표 변화는 무시하고, 초당 약 30회 조금씩 밝기를 바꾸며 목표에 가까워질수록 감속합니다.
-3. **조도별 학습:** 최근 사용자 활동 중 수동 밝기 변화가 감지되면 현재 평활 로그 조도와 `실제 밝기 − 기본 곡선 − 밝기 성향`을 학습 지점으로 저장합니다. 로그 조도 ±0.35 이내 지점은 교체하며 최대 8개를 유지하고, 초과하면 가장 오래된 지점을 지웁니다. 지점 사이 보정값은 선형 보간하고 범위 밖에서는 끝 값을 유지합니다. 지점이 하나면 전 구간에 같은 보정이 적용되며, 밤과 낮에서 각각 조절하면 서로 다른 선호가 반영됩니다. 새 지점보다 어두운 쪽의 과도하게 밝은 지점은 낮추고, 밝은 쪽의 더 어두운 지점은 올려 학습 지점의 밝기 순서를 유지합니다. 기본 곡선의 기울기 변화 때문에 지점 사이 전체 구간의 엄밀한 단조성까지 보장하지는 않습니다. 내장은 약 4초, 외부는 해당 모니터를 5초 쉬며 외부 학습은 밝기 읽기에서만 발생합니다. 내장·외부 지점은 JSON으로 각각 저장됩니다. 기존 단일 보정은 로그 조도 2.0의 지점 하나로 이관해 동작을 유지하고 기존 키를 0으로 만듭니다. 초기화는 해당 지점을 모두 삭제합니다.
-4. **유휴 디밍 무시:** 사용자가 자리를 비운 사이 발생한 밝기 변화는 선호값으로 학습하지 않습니다. 시스템의 디밍을 되돌리지 않고 사용자 활동이 돌아올 때까지 조절을 보류합니다.
-
-잠자기 해제, 사용자 세션 활성화, 디스플레이 구성 변경 시에는 밝기 제어 상태를 다시 맞춥니다.
-
-## 한계
-
-- 조도 센서는 IOKit의 비공개 IOHIDEventSystem API, 내장 밝기는 비공개 DisplayServices API, 외부 밝기는 비공개 IOAVService API를 사용합니다. **macOS 업데이트로 동작이 깨질 수 있습니다.** 모든 기기와 OS 버전의 호환성을 보장하지 않습니다.
-- 덮개를 닫은 클램쉘 상태에서는 조도 센서가 가려지므로 내장·외부 모니터 모두 자동 조절을 멈추고 현재 밝기를 유지합니다.
-- 수동 조절과 유휴 디밍은 사용자 활동 시간과 밝기 변화로 추정합니다. 다른 밝기 제어 앱의 변경도 수동 조절로 인식될 수 있습니다.
-- 센서나 필요한 API를 초기화할 수 없으면 경고 후 종료합니다.
-
-## 파일 구조
+## How it works
 
 ```text
-Package.swift                         Swift Package 설정
-Sources/LidLux/
-  main.swift                          메뉴바 UI, 로그인 실행, 시스템 이벤트
-  BrightnessController.swift          조도 곡선, 보정 학습, 밝기 전환
-  ExternalDisplays.swift              전용 직렬 큐의 DDC/CI 서비스와 읽기·쓰기
-  ExternalBrightnessController.swift  외부 모니터별 제어, 학습, 충돌 감지
-  LearnedCurve.swift                  조도별 보간·학습 값 모델
-  BrightnessKeyTap.swift              밝기 키 가로채기, 손쉬운 사용 권한, 화면 선택
-  BrightnessHUD.swift                 외부 화면 밝기 HUD
-  Settings.swift                      UserDefaults 설정 모델
-  SettingsWindow.swift                설정 창, 메뉴 슬라이더, 곡선 미리보기
-  PrivateAPI.swift                    조도 센서와 내장 디스플레이 API
-Resources/AppIcon.icns                빌드에 포함하는 앱 아이콘
-scripts/make-icon.swift               AppKit/CoreGraphics로 1024px PNG 그리기
-scripts/make-icon.sh                  PNG 크기별 변환 및 icns 생성
-build.sh                             앱 빌드, 번들 생성, 선택적 설치
-build/LidLux.app                  빌드 결과 (Git 제외)
+Built-in ambient light sensor → log10(lux + 1) → smoothing
+  → base curve + brightness preference + learned adjustment
+  → built-in display (DisplayServices) / external monitors (DDC via IOAVService)
 ```
 
-아이콘 디자인을 변경한 뒤 다음 명령으로 다시 생성합니다. 각 크기(16, 32, 128, 256, 512)와 @2x PNG를 만들고 `iconutil`로 묶습니다. 중간 PNG와 iconset은 임시 생성 후 삭제하며, `Resources/AppIcon.icns`를 저장소에 포함합니다.
+LidLux samples the sensor every **0.5 seconds**, responds faster to increasing light than decreasing light, and moves brightness gradually toward the target. Detected manual adjustments become learned points; nearby points are replaced, and the oldest point is removed when the curve exceeds eight points. Brightness is interpolated between points, with the nearest point’s adjustment used outside the learned range.
+
+The sensor uses **IOHIDEventSystem**, built-in brightness uses **DisplayServices**, and external DDC/CI uses **IOAVService**. These are private APIs.
+
+## Limitations
+
+- Private APIs can break with macOS updates. Compatibility with every Mac, monitor, or OS version is not guaranteed. If the sensor or required built-in API cannot be initialized, LidLux shows an alert and exits.
+- Updates or rebuilds change the ad-hoc signature and may require granting Accessibility permission again. Remove the old LidLux entry from the Accessibility list, then add the updated `/Applications/LidLux.app`.
+- With multiple external monitors, matching DDC services to screen names can be ambiguous. Keyboard control adjusts matching names; if no name matches, it falls back to **all detected external monitors**. Identical names can also select multiple monitors. The HUD then reflects the last successful write.
+- Learning infers manual changes from brightness readings; built-in learning also checks recent user activity. Other brightness tools can therefore affect learned preferences. External button changes are learned on a later DDC read, not immediately.
+- Closing the lid pauses automatic adjustment because the sensor is covered. LidLux does not provide ambient light–based automatic control in clamshell mode.
+
+## Troubleshooting
+
+### View logs
+
+```sh
+/usr/bin/log show --last 1h --predicate 'subsystem == "com.ntoktok.lidlux"'
+```
+
+Use the full **`/usr/bin/log`** path: zsh’s `log` builtin conflicts with the macOS logging command.
+
+### External monitor is not detected or brightness is unavailable
+
+Enable **DDC/CI** in the monitor’s OSD. Check the cable, adapter, or dock; try a direct connection or another connection type if available, especially with HDMI. Reconnect the monitor to trigger discovery again. Check LidLux’s monitor status and logs for DDC errors, and quit other brightness-control apps.
+
+### Brightness keys do not work
+
+Enable **Use brightness keys for external monitors**, place the pointer on an external screen, and confirm that LidLux can read its brightness. Check **Accessibility** permission and use **Fn** if needed. If permission is already enabled after an update or rebuild, remove LidLux from the permission list and add the current app again.
+
+## Development
+
+The project uses Swift Package Manager, AppKit, and SwiftUI.
+
+```text
+Sources/LidLux/
+  main.swift                          Menu bar, launch at login, system events
+  BrightnessController.swift          Sensor sampling, built-in control and learning
+  ExternalDisplays.swift              Serial DDC/CI discovery, reads, and writes
+  ExternalBrightnessController.swift  External control, learning, conflict detection
+  LearnedCurve.swift                  Learned points and brightness interpolation
+  BrightnessKeyTap.swift              Key capture, Accessibility, screen selection
+  BrightnessHUD.swift                 External brightness overlay
+  Settings.swift                      Persistent settings and applied curves
+  SettingsWindow.swift                Settings UI, menu slider, curve previews
+  Localization.swift                  English and Korean UI strings
+  PrivateAPI.swift                    Sensor and built-in display API wrappers
+Tests/LidLuxTests/                     Learned-curve and localization tests
+Package.swift                         Swift package and minimum macOS version
+build.sh                              App bundle, signing, optional install or ZIP
+scripts/test.sh                       Tests with Command Line Tools or Xcode
+scripts/make-icon.swift               Icon artwork
+scripts/make-icon.sh                  Icon size conversion and ICNS packaging
+Resources/AppIcon.icns                 Bundled app icon
+```
+
+Run tests without launching the app:
+
+```sh
+./scripts/test.sh
+```
+
+[CI](https://github.com/n3wr1ch/lidlux/actions/workflows/ci.yml) runs tests, builds the app, and checks the bundle metadata, executable, icon, and signature on `macos-15` for pushes to `main` and pull requests. See [RELEASING.md](RELEASING.md) for the tag-based release process and ZIP/checksum assets.
+
+After changing the icon artwork, regenerate it and rebuild:
 
 ```sh
 ./scripts/make-icon.sh
 ./build.sh
 ```
 
-## 테스트
+## License
 
-Xcode 없이 Command Line Tools만으로 Swift Testing 테스트를 실행합니다.
-
-```sh
-./scripts/test.sh
-```
-
-## 라이선스
-
-MIT License. [LICENSE](LICENSE)를 참고하세요.
+[MIT](LICENSE).
