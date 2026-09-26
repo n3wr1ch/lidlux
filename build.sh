@@ -1,7 +1,9 @@
 #!/bin/zsh
-# LidLux.app 번들을 빌드한다. 사용법: ./build.sh [install]
+# LidLux.app 번들을 빌드한다. 사용법: ./build.sh [install|zip]
 set -euo pipefail
 cd "$(dirname "$0")"
+VERSION=${VERSION:-1.0}
+BUILD_NUMBER=${BUILD_NUMBER:-1}
 
 swift build -c release
 
@@ -27,8 +29,17 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 </dict>
 </plist>
 PLIST
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$APP/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" "$APP/Contents/Info.plist"
 codesign --force --sign - "$APP"
 echo "빌드 완료: $APP"
+
+if [[ "${1:-}" == "zip" ]]; then
+    ARCHIVE="LidLux-$VERSION.zip"
+    ditto -c -k --keepParent "$APP" "build/$ARCHIVE"
+    (cd build && shasum -a 256 "$ARCHIVE" > "$ARCHIVE.sha256")
+    cat "build/$ARCHIVE.sha256"
+fi
 
 if [[ "${1:-}" == "install" ]]; then
     pkill -x LidLux 2>/dev/null || true
