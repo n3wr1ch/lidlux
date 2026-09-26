@@ -70,7 +70,7 @@ final class ExternalBrightnessController: ObservableObject {
     }
 
     func resetOffset() {
-        settings.externalOffset = 0
+        settings.externalLearnedPoints = LearnedCurve()
         for monitor in monitors { monitor.manualUntil = 0 }
         logger.notice("Reset external learned adjustment")
     }
@@ -131,8 +131,7 @@ final class ExternalBrightnessController: ObservableObject {
                   now >= monitor.manualUntil, now >= monitor.learningAfter,
                   now - monitor.lastWrite >= 1,
                   let maximum = monitor.maximum, let previous = monitor.lastSet else { continue }
-            let base = Double(BrightnessController.baseBrightness(forLogLux: logLux))
-            let level = max(settings.externalMinimum, min(1, base + settings.externalBias + settings.externalOffset))
+            let level = settings.externalAppliedBrightness(forLogLux: logLux)
             let target = Int((level * Double(maximum)).rounded())
             guard abs(target - previous) >= 3 else { continue }
             write(monitor, value: previous + max(-8, min(8, target - previous)))
@@ -166,9 +165,11 @@ final class ExternalBrightnessController: ObservableObject {
                 if self.settings.externalEnabled, self.now >= monitor.learningAfter,
                    let logLux = self.logLux, self.now - self.sampleTime <= 2 {
                     let base = Double(BrightnessController.baseBrightness(forLogLux: logLux))
-                    self.settings.externalOffset = Double(result.current) / Double(result.maximum) - base - self.settings.externalBias
+                    self.settings.externalLearnedPoints.learn(
+                        x: logLux, offset: Double(result.current) / Double(result.maximum) - base - self.settings.externalBias,
+                        base: { Double(BrightnessController.baseBrightness(forLogLux: $0)) }, bias: self.settings.externalBias)
                     monitor.manualUntil = self.now + 5
-                    self.logger.notice("Learned external adjustment: \(monitor.display.name, privacy: .public), offset=\(self.settings.externalOffset)")
+                    self.logger.notice("Learned external adjustment: \(monitor.display.name, privacy: .public), offset=\(self.settings.externalLearnedPoints.offset(at: logLux))")
                 }
             }
             self.publish()

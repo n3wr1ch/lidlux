@@ -40,11 +40,7 @@ final class BrightnessController {
         set { settings.isEnabled = newValue }
     }
 
-    /// 사용자 선호 보정값 (-1 ~ 1)
-    private(set) var offset: Float {
-        get { settings.offset }
-        set { settings.offset = newValue }
-    }
+    var currentLogLux: Double? { smoothedLogLux }
 
     var currentBrightness: Float? { display.brightness }
 
@@ -127,7 +123,7 @@ final class BrightnessController {
     }
 
     func resetOffset() {
-        offset = 0
+        settings.learnedPoints = LearnedCurve()
         settingsChanged = true
         logger.notice("Reset learned adjustment")
         manualUntil = .distantPast
@@ -213,9 +209,10 @@ final class BrightnessController {
             goal = actual
             if idle < 5 {
                 // 사용자가 밝기 키로 직접 조절함 → 선호도로 학습
-                offset = actual - base - Float(settings.brightnessBias)
+                settings.learnedPoints.learn(x: smoothed, offset: Double(actual) - Double(base) - settings.brightnessBias,
+                                             base: { Double(Self.baseBrightness(forLogLux: $0)) }, bias: settings.brightnessBias)
                 manualUntil = Date().addingTimeInterval(4)
-                logger.notice("Learned user adjustment: brightness=\(actual), offset=\(self.offset)")
+                logger.notice("Learned user adjustment: brightness=\(actual), offset=\(self.settings.learnedPoints.offset(at: smoothed))")
             } else {
                 // 자리를 비운 사이 시스템이 바꿈(유휴 디밍 등) → 사용자가 돌아올 때까지 건드리지 않음
                 suspendedUntilActivity = true

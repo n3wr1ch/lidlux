@@ -5,6 +5,7 @@ let package = Package(
     name: "LidLux",
     platforms: [.macOS(.v13)],
     targets: [
-        .executableTarget(name: "LidLux", path: "Sources/LidLux")
+        .executableTarget(name: "LidLux", path: "Sources/LidLux"),
+        .testTarget(name: "LidLuxTests", dependencies: ["LidLux"])
     ]
 )

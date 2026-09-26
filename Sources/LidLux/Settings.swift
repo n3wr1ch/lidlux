@@ -27,10 +27,10 @@ final class Settings: ObservableObject {
     var onExternalChange: ((String) -> Void)?
     @Published private var externalEnabledValue: Bool
     @Published private var externalBiasValue: Double
-    @Published private var externalOffsetValue: Double
+    @Published private var externalLearnedValue: LearnedCurve
     @Published private var externalMinimumValue: Double
     @Published private var enabledValue: Bool
-    @Published private var offsetValue: Float
+    @Published private var learnedValue: LearnedCurve
     @Published private var biasValue: Double
     @Published private var minimumValue: Double
     @Published private var speedValue: ResponseSpeed
@@ -40,13 +40,24 @@ final class Settings: ObservableObject {
         Self.migrateLegacySettings(into: defaults)
         externalEnabledValue = defaults.object(forKey: "externalEnabled") as? Bool ?? true
         externalBiasValue = Self.read(defaults, "externalBias", fallback: 0, range: -0.3...0.3)
-        externalOffsetValue = Self.read(defaults, "externalOffset", fallback: 0, range: -1...1)
+        externalLearnedValue = Self.loadCurve(defaults, key: "externalLearnedPoints", legacyKey: "externalOffset")
         externalMinimumValue = Self.read(defaults, "externalMinimum", fallback: 0, range: 0...1)
         enabledValue = defaults.object(forKey: "enabled") as? Bool ?? true
-        offsetValue = Float(Self.read(defaults, "offset", fallback: 0, range: -1...1))
+        learnedValue = Self.loadCurve(defaults, key: "learnedPoints", legacyKey: "offset")
         biasValue = Self.read(defaults, "brightnessBias", fallback: 0, range: -0.3...0.3)
         minimumValue = Self.read(defaults, "minimumBrightness", fallback: 0.03, range: 0...0.3)
         speedValue = ResponseSpeed(rawValue: defaults.string(forKey: "responseSpeed") ?? "") ?? .normal
+    }
+
+    private static func loadCurve(_ defaults: UserDefaults, key: String, legacyKey: String) -> LearnedCurve {
+        var curve = defaults.data(forKey: key).flatMap { try? JSONDecoder().decode(LearnedCurve.self, from: $0) } ?? LearnedCurve()
+        let legacy = read(defaults, legacyKey, fallback: 0, range: -1...1)
+        if curve.points.isEmpty && legacy != 0 {
+            curve.learn(x: 2, offset: legacy, base: { _ in 0 }, bias: 0)
+        }
+        if let data = try? JSONEncoder().encode(curve) { defaults.set(data, forKey: key) }
+        defaults.set(0, forKey: legacyKey)
+        return curve
     }
 
     /// 이전 이름(AutoBright, com.ntoktok.autobright) 시절의 설정을 한 번만 옮겨온다.
@@ -81,13 +92,12 @@ final class Settings: ObservableObject {
         get { enabledValue }
         set { guard newValue != enabledValue else { return }; enabledValue = newValue; save(newValue, key: "enabled") }
     }
-    var offset: Float {
-        get { offsetValue }
+    var learnedPoints: LearnedCurve {
+        get { learnedValue }
         set {
-            let value = Float(Self.bounded(Double(newValue), fallback: 0, range: -1...1))
-            guard value != offsetValue else { return }
-            offsetValue = value
-            save(value, key: "offset")
+            guard newValue != learnedValue, let data = try? JSONEncoder().encode(newValue) else { return }
+            learnedValue = newValue
+            save(data, key: "learnedPoints")
         }
     }
     var brightnessBias: Double {
@@ -126,13 +136,12 @@ final class Settings: ObservableObject {
             save(value, key: "externalBias")
         }
     }
-    var externalOffset: Double {
-        get { externalOffsetValue }
+    var externalLearnedPoints: LearnedCurve {
+        get { externalLearnedValue }
         set {
-            let value = Self.bounded(newValue, fallback: 0, range: -1...1)
-            guard value != externalOffsetValue else { return }
-            externalOffsetValue = value
-            save(value, key: "externalOffset")
+            guard newValue != externalLearnedValue, let data = try? JSONEncoder().encode(newValue) else { return }
+            externalLearnedValue = newValue
+            save(data, key: "externalLearnedPoints")
         }
     }
     var externalMinimum: Double {
@@ -146,18 +155,29 @@ final class Settings: ObservableObject {
     }
 
     func appliedBrightness(forLogLux x: Double) -> Float {
-        max(Float(minimumBrightness), min(1, BrightnessController.baseBrightness(forLogLux: x) + Float(brightnessBias) + offset))
+        max(Float(minimumBrightness), min(1, BrightnessController.baseBrightness(forLogLux: x) + Float(brightnessBias) + Float(learnedPoints.offset(at: x))))
+    }
+
+    func externalAppliedBrightness(forLogLux x: Double) -> Double {
+        max(externalMinimum, min(1, Double(BrightnessController.baseBrightness(forLogLux: x))
+            + externalBias + externalLearnedPoints.offset(at: x)))
+    }
+
+    func adjustmentDescription(at x: Double?, external: Bool = false) -> String {
+        let curve = external ? externalLearnedPoints : learnedPoints
+        let value = x.map { String(format: "%+.0f%%", curve.offset(at: $0) * 100) } ?? "측정 없음"
+        return "현재 조도에서의 보정 \(value) · 학습 지점 \(curve.points.count)개"
     }
 
     func restoreDefaults() {
         externalBias = 0
-        externalOffset = 0
+        externalLearnedPoints = LearnedCurve()
         externalMinimum = 0
         externalEnabled = true
         brightnessBias = 0
         minimumBrightness = 0.03
         responseSpeed = .normal
-        offset = 0
+        learnedPoints = LearnedCurve()
         isEnabled = true
         logger.notice("Restored default brightness settings")
     }

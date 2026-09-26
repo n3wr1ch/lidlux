@@ -85,13 +85,12 @@ private struct SettingsView: View {
                             metric("현재 조도", controller.lastLux.map { String(format: "%.0f lux", $0) } ?? "측정 없음")
                             Spacer()
                             metric("현재 밝기", controller.currentBrightness.map { String(format: "%.0f%%", $0 * 100) } ?? "디스플레이 꺼짐")
-                            Spacer()
-                            metric("학습된 보정값", String(format: "%+.0f%%", settings.offset * 100))
                         }
-                        CurvePreview(settings: settings, lux: controller.lastLux)
+                        Text(settings.adjustmentDescription(at: controller.currentLogLux)).monospacedDigit()
+                        CurvePreview(settings: settings, logLux: controller.currentLogLux)
                     }
                 }
-                Text("실선: 적용 곡선 · 회색 점선: 기본 곡선 (같으면 겹침)\n점: 현재 조도의 목표 밝기\n실제 화면 밝기는 반응 속도에 따라 부드럽게 이동합니다.")
+                Text("실선: 적용 곡선 · 회색 점선: 기본 곡선 (같으면 겹침)\n큰 점: 현재 조도의 목표 밝기 · 주황색 작은 원: 학습 지점\n실제 화면 밝기는 반응 속도에 따라 부드럽게 이동합니다.")
                     .font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 Divider()
@@ -105,9 +104,15 @@ private struct SettingsView: View {
                         Text(String(format: "%+.0f%%", settings.externalBias * 100)).monospacedDigit()
                     }
                     HStack {
-                        Text(String(format: "학습된 보정값 %+.0f%%", settings.externalOffset * 100))
+                        TimelineView(.periodic(from: .now, by: 1)) { _ in
+                            Text(settings.adjustmentDescription(at: controller.currentLogLux, external: true))
+                                .font(.caption).monospacedDigit()
+                        }
                         Spacer()
                         Button("외부 보정값 초기화") { external.resetOffset() }
+                    }
+                    TimelineView(.periodic(from: .now, by: 1)) { _ in
+                        CurvePreview(settings: settings, logLux: controller.currentLogLux, external: true)
                     }
                     if external.displays.isEmpty { Text("감지된 외부 모니터 없음").foregroundStyle(.secondary) }
                     ForEach(external.displays) { display in Text(display.title).monospacedDigit() }
@@ -147,8 +152,13 @@ private struct SettingsView: View {
 
 private struct CurvePreview: View {
     @ObservedObject var settings: Settings
-    let lux: Double?
-    private let maxLog = log10(5001.0)
+    let logLux: Double?
+    var external = false
+    private var learned: LearnedCurve { external ? settings.externalLearnedPoints : settings.learnedPoints }
+    private var maxLog: Double { max(log10(5001.0), learned.points.last?.x ?? 0, logLux ?? 0) }
+    private func applied(_ x: Double) -> Double {
+        external ? settings.externalAppliedBrightness(forLogLux: x) : Double(settings.appliedBrightness(forLogLux: x))
+    }
 
     var body: some View {
         GeometryReader { geometry in
@@ -171,11 +181,15 @@ private struct CurvePreview: View {
                     .stroke(Color.gray, style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
                 curve(width: width, height: height, applied: true)
                     .stroke(Color.accentColor, lineWidth: 2.5)
-                if let lux {
-                    let x = min(maxLog, log10(max(0, lux) + 1))
+                ForEach(learned.points, id: \.x) { point in
+                    Circle().stroke(Color.orange, lineWidth: 2).frame(width: 6, height: 6)
+                        .position(x: 40 + point.x / maxLog * width, y: height * (1 - applied(point.x)))
+                }
+                if let logLux {
+                    let x = min(maxLog, max(0, logLux))
                     Circle().fill(Color.accentColor).frame(width: 9, height: 9)
                         .position(x: 40 + x / maxLog * width,
-                                  y: height * (1 - Double(settings.appliedBrightness(forLogLux: x))))
+                                  y: height * (1 - applied(x)))
                 }
                 Text("조도 (lux, 로그 스케일)").font(.caption2)
                     .position(x: 40 + width / 2, y: height + 28)
@@ -184,14 +198,14 @@ private struct CurvePreview: View {
         .frame(height: 205)
         .padding(.top, 8)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("밝기 곡선 미리보기. 가로축 조도 0에서 5000 lux, 로그 스케일. 세로축 밝기 0에서 100퍼센트.")
+        .accessibilityLabel("밝기 곡선 미리보기. 가로축 조도, 로그 스케일. 세로축 밝기 0에서 100퍼센트.")
     }
 
     private func curve(width: CGFloat, height: CGFloat, applied: Bool) -> Path {
         Path { path in
             for index in 0...240 {
                 let x = Double(index) / 240 * maxLog
-                let brightness = applied ? settings.appliedBrightness(forLogLux: x) : BrightnessController.baseBrightness(forLogLux: x)
+                let brightness = applied ? self.applied(x) : Double(BrightnessController.baseBrightness(forLogLux: x))
                 let point = CGPoint(x: 40 + x / maxLog * width, y: height * (1 - Double(brightness)))
                 if index == 0 { path.move(to: point) } else { path.addLine(to: point) }
             }

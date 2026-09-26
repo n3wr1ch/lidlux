@@ -111,7 +111,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let lux = controller.lastLux.map { String(format: "%.0f lux", $0) } ?? "– lux"
         let level = controller.currentBrightness.map { String(format: "%.0f%%", $0 * 100) } ?? "내장 디스플레이 꺼짐"
         statusLine.title = "조도 \(lux) · 밝기 \(level)"
-        offsetLine.title = String(format: "선호 보정 %+.0f%%  (밝기 키로 조절하면 학습)", controller.offset * 100)
+        offsetLine.title = controller.settings.adjustmentDescription(at: controller.currentLogLux)
         enabledItem.state = controller.isEnabled ? .on : .off
         loginItem.state = SMAppService.mainApp.status == .enabled ? .on : .off
     }
