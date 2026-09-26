@@ -20,6 +20,19 @@ final class Settings: ObservableObject {
         }
     }
 
+    @Published private var brightnessKeysValue: Bool
+    var onBrightnessKeysChange: (() -> Void)?
+
+    var brightnessKeysControlExternal: Bool {
+        get { brightnessKeysValue }
+        set {
+            guard brightnessKeysValue != newValue else { return }
+            brightnessKeysValue = newValue
+            defaults.set(newValue, forKey: "brightnessKeysControlExternal")
+            onBrightnessKeysChange?()
+        }
+    }
+
     private let defaults: UserDefaults
     private let logger = Logger(subsystem: "com.ntoktok.lidlux", category: "settings")
     /// UI and controller run on the main thread. The controller reads changes on its next sample.
@@ -37,6 +50,7 @@ final class Settings: ObservableObject {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        brightnessKeysValue = defaults.object(forKey: "brightnessKeysControlExternal") as? Bool ?? true
         Self.migrateLegacySettings(into: defaults)
         externalEnabledValue = defaults.object(forKey: "externalEnabled") as? Bool ?? true
         externalBiasValue = Self.read(defaults, "externalBias", fallback: 0, range: -0.3...0.3)
@@ -150,6 +164,7 @@ final class Settings: ObservableObject {
     }
 
     func restoreDefaults() {
+        brightnessKeysControlExternal = true
         externalBias = 0
         externalOffset = 0
         externalMinimum = 0

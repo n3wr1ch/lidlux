@@ -215,4 +215,69 @@ final class ExternalBrightnessController: ObservableObject {
         logger.notice("External brightness conflicts: \(warnings.isEmpty ? "none" : warnings.joined(separator: "; "), privacy: .public)")
         onUpdate?()
     }
+
+    /// User writes deliberately leave lastSet/lastWrite untouched: read() owns learning.
+    var onUserAdjustment: ((Double) -> Void)?
+    private var userInputs: [(monitor: Monitor, step: Double, generation: Int, completion: ((Double) -> Void)?)] = []
+    private var userInputTimer: Timer?
+    private var userWriteInFlight = false
+
+    func userAdjust(targetName: String?, step: Double) {
+        guard !sleeping, step.isFinite else { return }
+        let matching = monitors.filter { $0.display.name == targetName }
+        let targets = monitors.count == 1 || matching.isEmpty ? monitors : matching
+        for monitor in targets {
+            monitor.manualUntil = now + 6
+            monitor.nextRead = now + 3.5
+            userInputs.append((monitor, step, token, onUserAdjustment))
+        }
+        drainUserInputs()
+    }
+
+    private func drainUserInputs() {
+        guard !userWriteInFlight else { return }
+        userInputTimer?.invalidate()
+        userInputTimer = nil
+        while let input = userInputs.first {
+            guard input.generation == token, !sleeping else {
+                userInputs.removeFirst()
+                continue
+            }
+            let monitor = input.monitor
+            // Existing automatic I/O must finish before calculating from its result.
+            if monitor.busy {
+                let timer = Timer(timeInterval: 0.02, repeats: false) { [weak self] _ in self?.drainUserInputs() }
+                userInputTimer = timer
+                RunLoop.main.add(timer, forMode: .common)
+                return
+            }
+            userInputs.removeFirst()
+            guard let current = monitor.current ?? monitor.lastSet,
+                  let maximum = monitor.maximum, maximum > 0 else { continue }
+            let value = Int(max(0, min(Double(maximum), Double(current) + input.step * Double(maximum))).rounded())
+            monitor.manualUntil = now + 6
+            monitor.nextRead = now + 3.5
+            monitor.busy = true
+            userWriteInFlight = true
+            ddc.write(id: monitor.display.id, value: value, token: input.generation) { [weak self] success in
+                guard let self else { return }
+                self.userWriteInFlight = false
+                if self.token == input.generation, !self.sleeping {
+                    monitor.busy = false
+                    // Also protect a slow or queued write from an immediate automatic overwrite.
+                    monitor.manualUntil = self.now + 6
+                    monitor.nextRead = self.now + 3.5
+                    if success {
+                        monitor.current = value
+                        monitor.writeFailures = 0
+                        self.publish()
+                        input.completion?(Double(value) / Double(maximum))
+                    }
+                }
+                self.drainUserInputs()
+            }
+            return
+        }
+    }
+
 }
