@@ -11,8 +11,8 @@ final class ExternalBrightnessController: ObservableObject {
         let maximum: Int?
         let unavailable: Bool
         var title: String {
-            guard !unavailable, let current, let maximum else { return "\(name) · 밝기 읽기 불가" }
-            return "\(name) \(Int((Double(current) / Double(maximum) * 100).rounded()))%"
+            guard !unavailable, let current, let maximum else { return L10n.brightnessUnavailable(name) }
+            return L10n.monitorBrightness(name, Int((Double(current) / Double(maximum) * 100).rounded()))
         }
     }
     private final class Monitor {
@@ -107,11 +107,11 @@ final class ExternalBrightnessController: ObservableObject {
             return CGDisplayIsBuiltin(id) == 0
         }
         return found.enumerated().map { index, display in
-            guard display.name == "외부 모니터" else { return display }
+            guard !display.hasProductName else { return display }
             if found.count == 1, externalScreens.count == 1 {
                 return ExternalDisplays.Display(id: display.id, name: externalScreens[0].localizedName)
             }
-            return ExternalDisplays.Display(id: display.id, name: found.count > 1 ? "외부 모니터 \(index + 1)" : display.name)
+            return ExternalDisplays.Display(id: display.id, name: found.count > 1 ? L10n.externalMonitorNumber(index + 1) : L10n.externalMonitor)
         }
     }
 
@@ -210,7 +210,7 @@ final class ExternalBrightnessController: ObservableObject {
             if app.bundleIdentifier == "fyi.lunar.Lunar" || app.localizedName == "Lunar" { names.insert("Lunar") }
             if app.bundleIdentifier == "me.guillaumeb.MonitorControl" || app.localizedName == "MonitorControl" { names.insert("MonitorControl") }
         }
-        let warnings = names.sorted().map { "\($0) 실행 중 — 밝기 제어가 충돌할 수 있습니다" }
+        let warnings = names.sorted().map { L10n.conflictWarning($0) }
         guard warnings != conflictWarnings else { return }
         conflictWarnings = warnings
         logger.notice("External brightness conflicts: \(warnings.isEmpty ? "none" : warnings.joined(separator: "; "), privacy: .public)")

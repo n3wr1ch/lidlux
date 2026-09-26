@@ -57,13 +57,13 @@ private struct BrightnessHUDView: View {
                         .frame(width: 10, height: 9)
                 }
             }
-            Text("\(Int((level * 100).rounded()))%")
+            Text(L10n.percent((level * 100).rounded()))
                 .font(.system(size: 13, weight: .medium)).monospacedDigit()
         }
         .foregroundStyle(.primary)
         .frame(width: 240, height: 132)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20))
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("외부 모니터 밝기 \(Int((level * 100).rounded()))퍼센트")
+        .accessibilityLabel(L10n.externalBrightnessAccessibility(Int((level * 100).rounded())))
     }
 }

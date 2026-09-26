@@ -7,6 +7,7 @@ final class ExternalDisplays {
     struct Display {
         let id: UInt64
         let name: String
+        var hasProductName = true
     }
     struct Brightness {
         let current: Int
@@ -65,7 +66,7 @@ final class ExternalDisplays {
                         let product = attributes?["ProductAttributes"] as? [String: Any]
                         let name = product?["ProductName"] as? String
                         services[id] = av
-                        displays.append(Display(id: id, name: name?.isEmpty == false ? name! : "외부 모니터"))
+                        displays.append(Display(id: id, name: name ?? "", hasProductName: name?.isEmpty == false))
                     }
                 }
             } else {

@@ -8,25 +8,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var controller: BrightnessController?
     private var externalController: ExternalBrightnessController?
     private var externalStatusItems: [NSMenuItem] = []
-    private let externalEnabledItem = NSMenuItem(title: "외부 모니터도 조절", action: #selector(toggleExternalEnabled), keyEquivalent: "")
+    private let externalEnabledItem = NSMenuItem(title: L10n.adjustExternal, action: #selector(toggleExternalEnabled), keyEquivalent: "")
     private var brightnessKeys: BrightnessKeyTap?
-    private let brightnessKeysItem = NSMenuItem(title: "밝기 키로 외부 모니터 조절", action: #selector(toggleBrightnessKeys), keyEquivalent: "")
+    private let brightnessKeysItem = NSMenuItem(title: L10n.brightnessKeys, action: #selector(toggleBrightnessKeys), keyEquivalent: "")
     private let brightnessKeysStatus = NSMenuItem(title: "", action: nil, keyEquivalent: "")
-    private let accessibilityItem = NSMenuItem(title: "손쉬운 사용 설정 열기…", action: #selector(openAccessibility), keyEquivalent: "")
+    private let accessibilityItem = NSMenuItem(title: L10n.openAccessibility, action: #selector(openAccessibility), keyEquivalent: "")
     private var settingsWindow: SettingsWindow?
     private var biasMenuView: BiasMenuView?
 
     private let statusLine = NSMenuItem(title: "", action: nil, keyEquivalent: "")
     private let offsetLine = NSMenuItem(title: "", action: nil, keyEquivalent: "")
-    private let enabledItem = NSMenuItem(title: "자동 밝기 조절", action: #selector(toggleEnabled), keyEquivalent: "")
-    private let loginItem = NSMenuItem(title: "로그인 시 실행", action: #selector(toggleLogin), keyEquivalent: "")
+    private let enabledItem = NSMenuItem(title: L10n.automaticBrightness, action: #selector(toggleEnabled), keyEquivalent: "")
+    private let loginItem = NSMenuItem(title: L10n.launchAtLogin, action: #selector(toggleLogin), keyEquivalent: "")
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         logger.notice("LidLux launching")
         guard let sensor = AmbientLightSensor(), let display = BuiltinDisplay() else {
             logger.error("Unable to initialize ambient light sensor or display API")
             let alert = NSAlert()
-            alert.messageText = "조도 센서 또는 내장 디스플레이를 찾을 수 없습니다."
+            alert.messageText = L10n.hardwareUnavailable
             alert.runModal()
             NSApp.terminate(nil)
             return
@@ -85,17 +85,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(brightnessKeysStatus)
         accessibilityItem.target = self
         menu.addItem(accessibilityItem)
-        let reset = NSMenuItem(title: "보정값 초기화", action: #selector(resetOffset), keyEquivalent: "")
+        let reset = NSMenuItem(title: L10n.resetAdjustments, action: #selector(resetOffset), keyEquivalent: "")
         reset.target = self
         menu.addItem(reset)
         menu.addItem(.separator())
-        let settingsItem = NSMenuItem(title: "설정…", action: #selector(openSettings), keyEquivalent: ",")
+        let settingsItem = NSMenuItem(title: L10n.settings, action: #selector(openSettings), keyEquivalent: ",")
         settingsItem.keyEquivalentModifierMask = .command
         settingsItem.target = self
         menu.addItem(settingsItem)
         loginItem.target = self
         menu.addItem(loginItem)
-        menu.addItem(NSMenuItem(title: "종료", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
+        menu.addItem(NSMenuItem(title: L10n.quit, action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         statusItem?.menu = menu
     }
 
@@ -107,7 +107,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         accessibilityItem.isHidden = brightnessKeys?.permissionGranted == true
         externalEnabledItem.state = controller.settings.externalEnabled ? .on : .off
         if let menu = statusItem.menu, let externalController {
-            let titles = (externalController.displays.isEmpty ? ["외부 모니터 감지 없음"] : externalController.displays.map(\.title)) + externalController.conflictWarnings
+            let titles = (externalController.displays.isEmpty ? [L10n.noExternalMonitors] : externalController.displays.map(\.title)) + externalController.conflictWarnings
             if externalStatusItems.map(\.title) != titles {
                 for item in externalStatusItems { menu.removeItem(item) }
                 externalStatusItems = titles.map { title in
@@ -122,12 +122,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let on = controller.isEnabled || controller.settings.externalEnabled
         statusItem.button?.image = NSImage(
             systemSymbolName: on ? "sun.max.fill" : "sun.max",
-            accessibilityDescription: "LidLux")
+            accessibilityDescription: L10n.appName)
         statusItem.button?.appearsDisabled = !on
 
-        let lux = controller.lastLux.map { String(format: "%.0f lux", $0) } ?? "– lux"
-        let level = controller.currentBrightness.map { String(format: "%.0f%%", $0 * 100) } ?? "내장 디스플레이 꺼짐"
-        statusLine.title = "조도 \(lux) · 밝기 \(level)"
+        let lux = controller.lastLux.map { L10n.lux($0) } ?? L10n.unknownLux
+        let level = controller.currentBrightness.map { L10n.percent(Double($0 * 100)) } ?? L10n.builtinDisplayOff
+        statusLine.title = L10n.luxAndBrightness(lux, level)
         offsetLine.title = controller.settings.adjustmentDescription(at: controller.currentLogLux)
         enabledItem.state = controller.isEnabled ? .on : .off
         loginItem.state = SMAppService.mainApp.status == .enabled ? .on : .off

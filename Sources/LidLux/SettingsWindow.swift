@@ -4,7 +4,7 @@ import SwiftUI
 final class BiasMenuView: NSView {
     private let settings: Settings
     private let slider: NSSlider
-    private let label = NSTextField(labelWithString: "밝기 성향")
+    private let label = NSTextField(labelWithString: L10n.brightnessBias)
 
     init(settings: Settings) {
         self.settings = settings
@@ -15,10 +15,10 @@ final class BiasMenuView: NSView {
         slider.target = self
         slider.action = #selector(changed)
         slider.isContinuous = true
-        slider.setAccessibilityLabel("밝기 성향")
+        slider.setAccessibilityLabel(L10n.brightnessBias)
         addSubview(label)
         addSubview(slider)
-        for (title, x) in [("어둡게", 18.0), ("밝게", 226.0)] {
+        for (title, x) in [(L10n.darker, 18.0), (L10n.brighter, 226.0)] {
             let caption = NSTextField(labelWithString: title)
             caption.font = .systemFont(ofSize: 11)
             caption.textColor = .secondaryLabelColor
@@ -31,7 +31,7 @@ final class BiasMenuView: NSView {
     @objc private func changed() { settings.brightnessBias = slider.doubleValue }
     func refresh() {
         slider.doubleValue = settings.brightnessBias
-        label.stringValue = String(format: "밝기 성향  %+.0f%%", settings.brightnessBias * 100)
+        label.stringValue = L10n.brightnessBiasValue(settings.brightnessBias * 100)
     }
 }
 
@@ -39,7 +39,7 @@ final class SettingsWindow: NSWindowController {
     init(controller: BrightnessController, external: ExternalBrightnessController, keys: BrightnessKeyTap) {
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 560, height: 700),
                               styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
-        window.title = "LidLux 설정"
+        window.title = L10n.settingsTitle
         window.isReleasedWhenClosed = false
         window.contentViewController = NSHostingController(rootView: SettingsView(settings: controller.settings, controller: controller, external: external, keys: keys))
         super.init(window: window)
@@ -63,52 +63,52 @@ private struct SettingsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 HStack {
-                    Text("밝기 성향").frame(width: 72, alignment: .leading)
-                    Text("어둡게")
-                    Slider(value: $settings.brightnessBias, in: -0.3...0.3).accessibilityLabel("밝기 성향")
-                    Text("밝게")
-                    Text(String(format: "%+.0f%%", settings.brightnessBias * 100))
+                    Text(L10n.brightnessBias).frame(width: 72, alignment: .leading)
+                    Text(L10n.darker)
+                    Slider(value: $settings.brightnessBias, in: -0.3...0.3).accessibilityLabel(L10n.brightnessBias)
+                    Text(L10n.brighter)
+                    Text(L10n.signedPercent(settings.brightnessBias * 100))
                         .monospacedDigit().frame(width: 44, alignment: .trailing)
                 }
                 HStack {
-                    Text("최소 밝기").frame(width: 72, alignment: .leading)
-                    Slider(value: $settings.minimumBrightness, in: 0...0.3).accessibilityLabel("최소 밝기")
-                    Text(String(format: "%.0f%%", settings.minimumBrightness * 100))
+                    Text(L10n.minimumBrightness).frame(width: 72, alignment: .leading)
+                    Slider(value: $settings.minimumBrightness, in: 0...0.3).accessibilityLabel(L10n.minimumBrightness)
+                    Text(L10n.percent(settings.minimumBrightness * 100))
                         .monospacedDigit().frame(width: 44, alignment: .trailing)
                 }
-                Picker("반응 속도", selection: $settings.responseSpeed) {
+                Picker(L10n.responseSpeed, selection: $settings.responseSpeed) {
                     ForEach(Settings.ResponseSpeed.allCases) { speed in Text(speed.title).tag(speed) }
                 }.pickerStyle(.segmented)
                 Divider()
                 TimelineView(.periodic(from: .now, by: 1)) { _ in
                     VStack(alignment: .leading, spacing: 12) {
                         HStack {
-                            metric("현재 조도", controller.lastLux.map { String(format: "%.0f lux", $0) } ?? "측정 없음")
+                            metric(L10n.currentLux, controller.lastLux.map { L10n.lux($0) } ?? L10n.noMeasurement)
                             Spacer()
-                            metric("현재 밝기", controller.currentBrightness.map { String(format: "%.0f%%", $0 * 100) } ?? "디스플레이 꺼짐")
+                            metric(L10n.currentBrightness, controller.currentBrightness.map { L10n.percent(Double($0 * 100)) } ?? L10n.displayOff)
                         }
                         Text(settings.adjustmentDescription(at: controller.currentLogLux)).monospacedDigit()
                         CurvePreview(settings: settings, logLux: controller.currentLogLux)
                     }
                 }
-                Text("실선: 적용 곡선 · 회색 점선: 기본 곡선 (같으면 겹침)\n큰 점: 현재 조도의 목표 밝기 · 주황색 작은 원: 학습 지점\n실제 화면 밝기는 반응 속도에 따라 부드럽게 이동합니다.")
+                Text(L10n.curveLegend)
                     .font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 Divider()
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("외부 모니터").font(.headline)
-                    Toggle("외부 모니터도 조절", isOn: $settings.externalEnabled)
-                    Toggle("밝기 키로 외부 모니터 조절", isOn: $settings.brightnessKeysControlExternal)
+                    Text(L10n.externalMonitor).font(.headline)
+                    Toggle(L10n.adjustExternal, isOn: $settings.externalEnabled)
+                    Toggle(L10n.brightnessKeys, isOn: $settings.brightnessKeysControlExternal)
                     HStack {
                         Text(keys.status).font(.caption).foregroundStyle(.secondary)
                         Spacer()
-                        Button("손쉬운 사용 설정 열기…") { keys.openAccessibilitySettings() }
+                        Button(L10n.openAccessibility) { keys.openAccessibilitySettings() }
                     }
                     HStack {
-                        Text("밝기 성향")
+                        Text(L10n.brightnessBias)
                         Slider(value: $settings.externalBias, in: -0.3...0.3)
-                            .accessibilityLabel("외부 모니터 밝기 성향")
-                        Text(String(format: "%+.0f%%", settings.externalBias * 100)).monospacedDigit()
+                            .accessibilityLabel(L10n.externalBrightnessBias)
+                        Text(L10n.signedPercent(settings.externalBias * 100)).monospacedDigit()
                     }
                     HStack {
                         TimelineView(.periodic(from: .now, by: 1)) { _ in
@@ -116,31 +116,31 @@ private struct SettingsView: View {
                                 .font(.caption).monospacedDigit()
                         }
                         Spacer()
-                        Button("외부 보정값 초기화") { external.resetOffset() }
+                        Button(L10n.resetExternalAdjustments) { external.resetOffset() }
                     }
                     TimelineView(.periodic(from: .now, by: 1)) { _ in
                         CurvePreview(settings: settings, logLux: controller.currentLogLux, external: true)
                     }
-                    if external.displays.isEmpty { Text("감지된 외부 모니터 없음").foregroundStyle(.secondary) }
+                    if external.displays.isEmpty { Text(L10n.noDetectedExternalMonitors).foregroundStyle(.secondary) }
                     ForEach(external.displays) { display in Text(display.title).monospacedDigit() }
                     ForEach(external.conflictWarnings, id: \.self) { warning in
                         Text(warning).foregroundStyle(.orange)
                             .fixedSize(horizontal: false, vertical: true)
                     }
-                    Text("모니터 OSD에서 DDC/CI를 켜세요. 보정값은 외부 모니터들이 공유합니다. 밝기는 마지막 읽기 또는 쓰기 기준입니다.")
+                    Text(L10n.ddcHelp)
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 Divider()
                 HStack {
-                    Button("보정값 초기화") { controller.resetOffset() }
+                    Button(L10n.resetAdjustments) { controller.resetOffset() }
                     Spacer()
-                    Button("기본값으로 되돌리기") {
+                    Button(L10n.restoreDefaults) {
                         settings.restoreDefaults()
                         external.resetOffset()
                         controller.resetOffset()
                     }
                 }
-                Text("기본값 복원 시 자동 조절을 켜고 보정값과 밝기 설정을 초기화합니다.")
+                Text(L10n.restoreHelp)
                     .font(.caption).foregroundStyle(.secondary)
             }
             .padding(24)
@@ -174,14 +174,14 @@ private struct CurvePreview: View {
             ZStack(alignment: .topLeading) {
                 ForEach([0, 50, 100], id: \.self) { value in
                     let y = height * (1 - Double(value) / 100)
-                    Text("\(value)%").font(.caption2).position(x: 18, y: y)
+                    Text(L10n.percent(Double(value))).font(.caption2).position(x: 18, y: y)
                     Path { path in
                         path.move(to: CGPoint(x: 40, y: y))
                         path.addLine(to: CGPoint(x: 40 + width, y: y))
                     }.stroke(Color.secondary.opacity(0.2), lineWidth: 1)
                 }
                 ForEach([0, 10, 100, 1000, 5000], id: \.self) { value in
-                    Text("\(value)").font(.caption2)
+                    Text(L10n.number(value)).font(.caption2)
                         .position(x: 40 + log10(Double(value) + 1) / maxLog * width, y: height + 12)
                 }
                 curve(width: width, height: height, applied: false)
@@ -198,14 +198,14 @@ private struct CurvePreview: View {
                         .position(x: 40 + x / maxLog * width,
                                   y: height * (1 - applied(x)))
                 }
-                Text("조도 (lux, 로그 스케일)").font(.caption2)
+                Text(L10n.luxAxis).font(.caption2)
                     .position(x: 40 + width / 2, y: height + 28)
             }
         }
         .frame(height: 205)
         .padding(.top, 8)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("밝기 곡선 미리보기. 가로축 조도, 로그 스케일. 세로축 밝기 0에서 100퍼센트.")
+        .accessibilityLabel(L10n.curveAccessibility)
     }
 
     private func curve(width: CGFloat, height: CGFloat, applied: Bool) -> Path {

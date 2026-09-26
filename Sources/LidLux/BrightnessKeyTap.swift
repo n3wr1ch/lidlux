@@ -20,9 +20,9 @@ final class BrightnessKeyTap: ObservableObject {
     private var reportedFailure = false
 
     var status: String {
-        if !settings.brightnessKeysControlExternal { return "밝기 키 외부 조절 꺼짐" }
-        if !permissionGranted { return "손쉬운 사용 권한 필요" }
-        return isActive ? "밝기 키 외부 조절 사용 중" : "밝기 키 감시 시작 실패 · 재시도 중"
+        if !settings.brightnessKeysControlExternal { return L10n.keysOff }
+        if !permissionGranted { return L10n.permissionRequired }
+        return isActive ? L10n.keysActive : L10n.keysRetrying
     }
 
     init(settings: Settings, external: ExternalBrightnessController) {

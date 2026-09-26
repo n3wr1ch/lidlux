@@ -7,7 +7,7 @@ final class Settings: ObservableObject {
         case slow, normal, fast
         var id: String { rawValue }
         var title: String {
-            switch self { case .slow: return "느림"; case .normal: return "보통"; case .fast: return "빠름" }
+            switch self { case .slow: return L10n.slow; case .normal: return L10n.normal; case .fast: return L10n.fast }
         }
         var brighteningAlpha: Double {
             switch self { case .slow: return 0.18; case .normal: return 0.35; case .fast: return 0.6 }
@@ -179,8 +179,8 @@ final class Settings: ObservableObject {
 
     func adjustmentDescription(at x: Double?, external: Bool = false) -> String {
         let curve = external ? externalLearnedPoints : learnedPoints
-        let value = x.map { String(format: "%+.0f%%", curve.offset(at: $0) * 100) } ?? "측정 없음"
-        return "현재 조도에서의 보정 \(value) · 학습 지점 \(curve.points.count)개"
+        let value = x.map { L10n.signedPercent(curve.offset(at: $0) * 100) } ?? L10n.noMeasurement
+        return L10n.adjustment(value, points: curve.points.count)
     }
 
     func restoreDefaults() {
