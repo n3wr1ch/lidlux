@@ -36,12 +36,12 @@ final class BiasMenuView: NSView {
 }
 
 final class SettingsWindow: NSWindowController {
-    init(controller: BrightnessController, external: ExternalBrightnessController) {
+    init(controller: BrightnessController, external: ExternalBrightnessController, keys: BrightnessKeyTap) {
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 560, height: 700),
                               styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
         window.title = "LidLux 설정"
         window.isReleasedWhenClosed = false
-        window.contentViewController = NSHostingController(rootView: SettingsView(settings: controller.settings, controller: controller, external: external))
+        window.contentViewController = NSHostingController(rootView: SettingsView(settings: controller.settings, controller: controller, external: external, keys: keys))
         super.init(window: window)
         window.center()
     }
@@ -57,6 +57,7 @@ private struct SettingsView: View {
     @ObservedObject var settings: Settings
     let controller: BrightnessController
     @ObservedObject var external: ExternalBrightnessController
+    @ObservedObject var keys: BrightnessKeyTap
 
     var body: some View {
         ScrollView {
@@ -97,6 +98,12 @@ private struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 10) {
                     Text("외부 모니터").font(.headline)
                     Toggle("외부 모니터도 조절", isOn: $settings.externalEnabled)
+                    Toggle("밝기 키로 외부 모니터 조절", isOn: $settings.brightnessKeysControlExternal)
+                    HStack {
+                        Text(keys.status).font(.caption).foregroundStyle(.secondary)
+                        Spacer()
+                        Button("손쉬운 사용 설정 열기…") { keys.openAccessibilitySettings() }
+                    }
                     HStack {
                         Text("밝기 성향")
                         Slider(value: $settings.externalBias, in: -0.3...0.3)

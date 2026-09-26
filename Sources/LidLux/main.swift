@@ -9,6 +9,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var externalController: ExternalBrightnessController?
     private var externalStatusItems: [NSMenuItem] = []
     private let externalEnabledItem = NSMenuItem(title: "외부 모니터도 조절", action: #selector(toggleExternalEnabled), keyEquivalent: "")
+    private var brightnessKeys: BrightnessKeyTap?
+    private let brightnessKeysItem = NSMenuItem(title: "밝기 키로 외부 모니터 조절", action: #selector(toggleBrightnessKeys), keyEquivalent: "")
+    private let brightnessKeysStatus = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+    private let accessibilityItem = NSMenuItem(title: "손쉬운 사용 설정 열기…", action: #selector(openAccessibility), keyEquivalent: "")
     private var settingsWindow: SettingsWindow?
     private var biasMenuView: BiasMenuView?
 
@@ -31,6 +35,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         self.controller = controller
         let external = ExternalBrightnessController(settings: controller.settings)
         externalController = external
+        let keys = BrightnessKeyTap(settings: controller.settings, external: external)
+        brightnessKeys = keys
+        keys.onUpdate = { [weak self] in self?.refresh() }
         controller.onSample = { [weak external] in external?.accept(logLux: $0) }
         controller.settings.onExternalChange = { [weak external] in external?.settingsChanged($0) }
         external.onUpdate = { [weak self] in self?.refresh() }
@@ -48,6 +55,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             name: NSApplication.didChangeScreenParametersNotification, object: nil)
 
         external.start()
+        keys.start()
         if controller.isEnabled || controller.settings.externalEnabled { controller.start() }
         refresh()
     }
@@ -71,6 +79,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(enabledItem)
         externalEnabledItem.target = self
         menu.addItem(externalEnabledItem)
+        brightnessKeysItem.target = self
+        menu.addItem(brightnessKeysItem)
+        brightnessKeysStatus.isEnabled = false
+        menu.addItem(brightnessKeysStatus)
+        accessibilityItem.target = self
+        menu.addItem(accessibilityItem)
         let reset = NSMenuItem(title: "보정값 초기화", action: #selector(resetOffset), keyEquivalent: "")
         reset.target = self
         menu.addItem(reset)
@@ -88,6 +102,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func refresh() {
         guard let controller, let statusItem else { return }
         biasMenuView?.refresh()
+        brightnessKeysItem.state = controller.settings.brightnessKeysControlExternal ? .on : .off
+        brightnessKeysStatus.title = brightnessKeys?.status ?? ""
+        accessibilityItem.isHidden = brightnessKeys?.permissionGranted == true
         externalEnabledItem.state = controller.settings.externalEnabled ? .on : .off
         if let menu = statusItem.menu, let externalController {
             let titles = (externalController.displays.isEmpty ? ["외부 모니터 감지 없음"] : externalController.displays.map(\.title)) + externalController.conflictWarnings
@@ -119,10 +136,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func menuWillOpen(_ menu: NSMenu) { refresh() }
 
     @objc private func openSettings() {
-        guard let controller, let externalController else { return }
-        if settingsWindow == nil { settingsWindow = SettingsWindow(controller: controller, external: externalController) }
+        guard let controller, let externalController, let brightnessKeys else { return }
+        if settingsWindow == nil { settingsWindow = SettingsWindow(controller: controller, external: externalController, keys: brightnessKeys) }
         settingsWindow?.present()
     }
+
+    func applicationWillTerminate(_ notification: Notification) { brightnessKeys?.stop() }
+
+    @objc private func toggleBrightnessKeys() {
+        controller?.settings.brightnessKeysControlExternal.toggle()
+        refresh()
+    }
+
+    @objc private func openAccessibility() { brightnessKeys?.openAccessibilitySettings() }
 
     @objc private func toggleEnabled() {
         guard let controller else { return }
