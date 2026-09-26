@@ -30,6 +30,7 @@ final class BrightnessController {
     private var suspendedUntilActivity = false
 
     private(set) var lastLux: Double?
+    var onSample: ((Double) -> Void)?
     var onUpdate: (() -> Void)?
 
     // MARK: 설정 (UserDefaults)
@@ -54,7 +55,13 @@ final class BrightnessController {
         settings.onChange = { [weak self] key in
             guard let self else { return }
             if key == "enabled" {
-                self.isEnabled ? self.start() : self.stop()
+                if self.isEnabled { self.resync(reason: "enabled") }
+                self.isEnabled || self.settings.externalEnabled ? self.start() : self.stop()
+                if !self.isEnabled { self.stopAnimation() }
+            } else if key == "externalEnabled" {
+                self.isEnabled || self.settings.externalEnabled ? self.start() : self.stop()
+            } else if key.hasPrefix("external") {
+                // External preferences must not affect built-in learning or animation.
             } else {
                 self.settingsChanged = true
             }
@@ -136,14 +143,14 @@ final class BrightnessController {
         defer { onUpdate?() }
 
         guard !isSleeping else { return }
-        guard let actual = display.brightness else {
+        let actual = display.brightness
+        if actual == nil {
             if displayWasAvailable {
                 resync(reason: "built-in display unavailable")
             }
             displayWasAvailable = false
-            return
         }
-        if !displayWasAvailable {
+        if actual != nil && !displayWasAvailable {
             resync(reason: "built-in display available")
             displayWasAvailable = true
         }
@@ -175,6 +182,10 @@ final class BrightnessController {
             smoothed = logLux
         }
         smoothedLogLux = smoothed
+        // 뚜껑을 닫으면(내장 디스플레이 없음) 센서가 가려져 0 lux 가 되므로 외부 모니터에 전달하지 않는다.
+        guard let actual else { return }
+        onSample?(smoothed)
+        guard isEnabled else { return }
         let base = Self.baseBrightness(forLogLux: smoothed)
 
         // 화면 복귀 직후 OS가 적용하는 밝기는 학습하지 않고 기준만 갱신한다.

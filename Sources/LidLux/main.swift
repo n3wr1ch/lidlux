@@ -6,6 +6,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let logger = Logger(subsystem: "com.ntoktok.lidlux", category: "app")
     private var statusItem: NSStatusItem?
     private var controller: BrightnessController?
+    private var externalController: ExternalBrightnessController?
+    private var externalStatusItems: [NSMenuItem] = []
+    private let externalEnabledItem = NSMenuItem(title: "외부 모니터도 조절", action: #selector(toggleExternalEnabled), keyEquivalent: "")
     private var settingsWindow: SettingsWindow?
     private var biasMenuView: BiasMenuView?
 
@@ -26,6 +29,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         let controller = BrightnessController(sensor: sensor, display: display)
         self.controller = controller
+        let external = ExternalBrightnessController(settings: controller.settings)
+        externalController = external
+        controller.onSample = { [weak external] in external?.accept(logLux: $0) }
+        controller.settings.onExternalChange = { [weak external] in external?.settingsChanged($0) }
+        external.onUpdate = { [weak self] in self?.refresh() }
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         buildMenu()
@@ -39,7 +47,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self, selector: #selector(resync(_:)),
             name: NSApplication.didChangeScreenParametersNotification, object: nil)
 
-        if controller.isEnabled { controller.start() }
+        external.start()
+        if controller.isEnabled || controller.settings.externalEnabled { controller.start() }
         refresh()
     }
 
@@ -60,6 +69,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(.separator())
         enabledItem.target = self
         menu.addItem(enabledItem)
+        externalEnabledItem.target = self
+        menu.addItem(externalEnabledItem)
         let reset = NSMenuItem(title: "보정값 초기화", action: #selector(resetOffset), keyEquivalent: "")
         reset.target = self
         menu.addItem(reset)
@@ -77,7 +88,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func refresh() {
         guard let controller, let statusItem else { return }
         biasMenuView?.refresh()
-        let on = controller.isEnabled
+        externalEnabledItem.state = controller.settings.externalEnabled ? .on : .off
+        if let menu = statusItem.menu, let externalController {
+            let titles = (externalController.displays.isEmpty ? ["외부 모니터 감지 없음"] : externalController.displays.map(\.title)) + externalController.conflictWarnings
+            if externalStatusItems.map(\.title) != titles {
+                for item in externalStatusItems { menu.removeItem(item) }
+                externalStatusItems = titles.map { title in
+                    let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+                    item.isEnabled = false
+                    return item
+                }
+                let index = menu.index(of: externalEnabledItem) + 1
+                for (offset, item) in externalStatusItems.enumerated() { menu.insertItem(item, at: index + offset) }
+            }
+        }
+        let on = controller.isEnabled || controller.settings.externalEnabled
         statusItem.button?.image = NSImage(
             systemSymbolName: on ? "sun.max.fill" : "sun.max",
             accessibilityDescription: "LidLux")
@@ -87,15 +112,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let level = controller.currentBrightness.map { String(format: "%.0f%%", $0 * 100) } ?? "내장 디스플레이 꺼짐"
         statusLine.title = "조도 \(lux) · 밝기 \(level)"
         offsetLine.title = String(format: "선호 보정 %+.0f%%  (밝기 키로 조절하면 학습)", controller.offset * 100)
-        enabledItem.state = on ? .on : .off
+        enabledItem.state = controller.isEnabled ? .on : .off
         loginItem.state = SMAppService.mainApp.status == .enabled ? .on : .off
     }
 
     func menuWillOpen(_ menu: NSMenu) { refresh() }
 
     @objc private func openSettings() {
-        guard let controller else { return }
-        if settingsWindow == nil { settingsWindow = SettingsWindow(controller: controller) }
+        guard let controller, let externalController else { return }
+        if settingsWindow == nil { settingsWindow = SettingsWindow(controller: controller, external: externalController) }
         settingsWindow?.present()
     }
 
@@ -105,12 +130,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         refresh()
     }
 
+    @objc private func toggleExternalEnabled() {
+        controller?.settings.externalEnabled.toggle()
+        refresh()
+    }
+
     @objc private func resetOffset() {
         controller?.resetOffset()
     }
 
     @objc private func resync(_ notification: Notification) {
         let reason = notification.name.rawValue
+        switch notification.name {
+        case NSWorkspace.willSleepNotification:
+            externalController?.setSleeping(true, system: true)
+        case NSWorkspace.screensDidSleepNotification:
+            externalController?.setSleeping(true, system: false)
+        case NSWorkspace.didWakeNotification:
+            externalController?.setSleeping(false, system: true)
+        case NSWorkspace.screensDidWakeNotification:
+            externalController?.setSleeping(false, system: false)
+        default:
+            externalController?.resync(reason: reason)
+        }
         switch notification.name {
         case NSWorkspace.willSleepNotification, NSWorkspace.screensDidSleepNotification:
             controller?.setSleeping(true, reason: reason)

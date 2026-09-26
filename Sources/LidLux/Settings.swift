@@ -24,6 +24,11 @@ final class Settings: ObservableObject {
     private let logger = Logger(subsystem: "com.ntoktok.lidlux", category: "settings")
     /// UI and controller run on the main thread. The controller reads changes on its next sample.
     var onChange: ((String) -> Void)?
+    var onExternalChange: ((String) -> Void)?
+    @Published private var externalEnabledValue: Bool
+    @Published private var externalBiasValue: Double
+    @Published private var externalOffsetValue: Double
+    @Published private var externalMinimumValue: Double
     @Published private var enabledValue: Bool
     @Published private var offsetValue: Float
     @Published private var biasValue: Double
@@ -33,6 +38,10 @@ final class Settings: ObservableObject {
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         Self.migrateLegacySettings(into: defaults)
+        externalEnabledValue = defaults.object(forKey: "externalEnabled") as? Bool ?? true
+        externalBiasValue = Self.read(defaults, "externalBias", fallback: 0, range: -0.3...0.3)
+        externalOffsetValue = Self.read(defaults, "externalOffset", fallback: 0, range: -1...1)
+        externalMinimumValue = Self.read(defaults, "externalMinimum", fallback: 0, range: 0...1)
         enabledValue = defaults.object(forKey: "enabled") as? Bool ?? true
         offsetValue = Float(Self.read(defaults, "offset", fallback: 0, range: -1...1))
         biasValue = Self.read(defaults, "brightnessBias", fallback: 0, range: -0.3...0.3)
@@ -65,6 +74,7 @@ final class Settings: ObservableObject {
         defaults.set(value, forKey: key)
         logger.notice("Setting changed: \(key, privacy: .public)")
         onChange?(key)
+        if key.hasPrefix("external") { onExternalChange?(key) }
     }
 
     var isEnabled: Bool {
@@ -103,11 +113,47 @@ final class Settings: ObservableObject {
         set { guard newValue != speedValue else { return }; speedValue = newValue; save(newValue.rawValue, key: "responseSpeed") }
     }
 
+    var externalEnabled: Bool {
+        get { externalEnabledValue }
+        set { guard newValue != externalEnabledValue else { return }; externalEnabledValue = newValue; save(newValue, key: "externalEnabled") }
+    }
+    var externalBias: Double {
+        get { externalBiasValue }
+        set {
+            let value = Self.bounded(newValue, fallback: 0, range: -0.3...0.3)
+            guard value != externalBiasValue else { return }
+            externalBiasValue = value
+            save(value, key: "externalBias")
+        }
+    }
+    var externalOffset: Double {
+        get { externalOffsetValue }
+        set {
+            let value = Self.bounded(newValue, fallback: 0, range: -1...1)
+            guard value != externalOffsetValue else { return }
+            externalOffsetValue = value
+            save(value, key: "externalOffset")
+        }
+    }
+    var externalMinimum: Double {
+        get { externalMinimumValue }
+        set {
+            let value = Self.bounded(newValue, fallback: 0, range: 0...1)
+            guard value != externalMinimumValue else { return }
+            externalMinimumValue = value
+            save(value, key: "externalMinimum")
+        }
+    }
+
     func appliedBrightness(forLogLux x: Double) -> Float {
         max(Float(minimumBrightness), min(1, BrightnessController.baseBrightness(forLogLux: x) + Float(brightnessBias) + offset))
     }
 
     func restoreDefaults() {
+        externalBias = 0
+        externalOffset = 0
+        externalMinimum = 0
+        externalEnabled = true
         brightnessBias = 0
         minimumBrightness = 0.03
         responseSpeed = .normal

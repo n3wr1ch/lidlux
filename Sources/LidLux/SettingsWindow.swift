@@ -36,12 +36,12 @@ final class BiasMenuView: NSView {
 }
 
 final class SettingsWindow: NSWindowController {
-    init(controller: BrightnessController) {
+    init(controller: BrightnessController, external: ExternalBrightnessController) {
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 560, height: 700),
                               styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
         window.title = "LidLux 설정"
         window.isReleasedWhenClosed = false
-        window.contentViewController = NSHostingController(rootView: SettingsView(settings: controller.settings, controller: controller))
+        window.contentViewController = NSHostingController(rootView: SettingsView(settings: controller.settings, controller: controller, external: external))
         super.init(window: window)
         window.center()
     }
@@ -56,55 +56,85 @@ final class SettingsWindow: NSWindowController {
 private struct SettingsView: View {
     @ObservedObject var settings: Settings
     let controller: BrightnessController
+    @ObservedObject var external: ExternalBrightnessController
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            HStack {
-                Text("밝기 성향").frame(width: 72, alignment: .leading)
-                Text("어둡게")
-                Slider(value: $settings.brightnessBias, in: -0.3...0.3).accessibilityLabel("밝기 성향")
-                Text("밝게")
-                Text(String(format: "%+.0f%%", settings.brightnessBias * 100))
-                    .monospacedDigit().frame(width: 44, alignment: .trailing)
-            }
-            HStack {
-                Text("최소 밝기").frame(width: 72, alignment: .leading)
-                Slider(value: $settings.minimumBrightness, in: 0...0.3).accessibilityLabel("최소 밝기")
-                Text(String(format: "%.0f%%", settings.minimumBrightness * 100))
-                    .monospacedDigit().frame(width: 44, alignment: .trailing)
-            }
-            Picker("반응 속도", selection: $settings.responseSpeed) {
-                ForEach(Settings.ResponseSpeed.allCases) { speed in Text(speed.title).tag(speed) }
-            }.pickerStyle(.segmented)
-            Divider()
-            TimelineView(.periodic(from: .now, by: 1)) { _ in
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack {
-                        metric("현재 조도", controller.lastLux.map { String(format: "%.0f lux", $0) } ?? "측정 없음")
-                        Spacer()
-                        metric("현재 밝기", controller.currentBrightness.map { String(format: "%.0f%%", $0 * 100) } ?? "디스플레이 꺼짐")
-                        Spacer()
-                        metric("학습된 보정값", String(format: "%+.0f%%", settings.offset * 100))
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                HStack {
+                    Text("밝기 성향").frame(width: 72, alignment: .leading)
+                    Text("어둡게")
+                    Slider(value: $settings.brightnessBias, in: -0.3...0.3).accessibilityLabel("밝기 성향")
+                    Text("밝게")
+                    Text(String(format: "%+.0f%%", settings.brightnessBias * 100))
+                        .monospacedDigit().frame(width: 44, alignment: .trailing)
+                }
+                HStack {
+                    Text("최소 밝기").frame(width: 72, alignment: .leading)
+                    Slider(value: $settings.minimumBrightness, in: 0...0.3).accessibilityLabel("최소 밝기")
+                    Text(String(format: "%.0f%%", settings.minimumBrightness * 100))
+                        .monospacedDigit().frame(width: 44, alignment: .trailing)
+                }
+                Picker("반응 속도", selection: $settings.responseSpeed) {
+                    ForEach(Settings.ResponseSpeed.allCases) { speed in Text(speed.title).tag(speed) }
+                }.pickerStyle(.segmented)
+                Divider()
+                TimelineView(.periodic(from: .now, by: 1)) { _ in
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            metric("현재 조도", controller.lastLux.map { String(format: "%.0f lux", $0) } ?? "측정 없음")
+                            Spacer()
+                            metric("현재 밝기", controller.currentBrightness.map { String(format: "%.0f%%", $0 * 100) } ?? "디스플레이 꺼짐")
+                            Spacer()
+                            metric("학습된 보정값", String(format: "%+.0f%%", settings.offset * 100))
+                        }
+                        CurvePreview(settings: settings, lux: controller.lastLux)
                     }
-                    CurvePreview(settings: settings, lux: controller.lastLux)
                 }
-            }
-            Text("실선: 적용 곡선 · 회색 점선: 기본 곡선 (같으면 겹침)\n점: 현재 조도의 목표 밝기\n실제 화면 밝기는 반응 속도에 따라 부드럽게 이동합니다.")
-                .font(.caption).foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-            HStack {
-                Button("보정값 초기화") { controller.resetOffset() }
-                Spacer()
-                Button("기본값으로 되돌리기") {
-                    settings.restoreDefaults()
-                    controller.resetOffset()
+                Text("실선: 적용 곡선 · 회색 점선: 기본 곡선 (같으면 겹침)\n점: 현재 조도의 목표 밝기\n실제 화면 밝기는 반응 속도에 따라 부드럽게 이동합니다.")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Divider()
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("외부 모니터").font(.headline)
+                    Toggle("외부 모니터도 조절", isOn: $settings.externalEnabled)
+                    HStack {
+                        Text("밝기 성향")
+                        Slider(value: $settings.externalBias, in: -0.3...0.3)
+                            .accessibilityLabel("외부 모니터 밝기 성향")
+                        Text(String(format: "%+.0f%%", settings.externalBias * 100)).monospacedDigit()
+                    }
+                    HStack {
+                        Text(String(format: "학습된 보정값 %+.0f%%", settings.externalOffset * 100))
+                        Spacer()
+                        Button("외부 보정값 초기화") { external.resetOffset() }
+                    }
+                    if external.displays.isEmpty { Text("감지된 외부 모니터 없음").foregroundStyle(.secondary) }
+                    ForEach(external.displays) { display in Text(display.title).monospacedDigit() }
+                    ForEach(external.conflictWarnings, id: \.self) { warning in
+                        Text(warning).foregroundStyle(.orange)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Text("모니터 OSD에서 DDC/CI를 켜세요. 보정값은 외부 모니터들이 공유합니다. 밝기는 마지막 읽기 또는 쓰기 기준입니다.")
+                        .font(.caption).foregroundStyle(.secondary)
                 }
+                Divider()
+                HStack {
+                    Button("보정값 초기화") { controller.resetOffset() }
+                    Spacer()
+                    Button("기본값으로 되돌리기") {
+                        settings.restoreDefaults()
+                        external.resetOffset()
+                        controller.resetOffset()
+                    }
+                }
+                Text("기본값 복원 시 자동 조절을 켜고 보정값과 밝기 설정을 초기화합니다.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
-            Text("기본값 복원 시 자동 조절을 켜고 보정값과 밝기 설정을 초기화합니다.")
-                .font(.caption).foregroundStyle(.secondary)
+            .padding(24)
+            .frame(width: 560)
         }
-        .padding(24)
-        .frame(width: 560)
+        .frame(width: 560, height: 700)
     }
 
     private func metric(_ title: String, _ value: String) -> some View {
